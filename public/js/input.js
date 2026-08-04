@@ -7,6 +7,7 @@ export class Input {
     this.onCameraToggle = null;
     this.onDoubleShift = null;
     this.onShoot = null;
+    this.joined = false;
     this.lastShiftDown = 0;
     this._shiftArmed = false;
 
@@ -72,7 +73,7 @@ export class Input {
 
     if (!this.isMobile) {
       window.addEventListener('mousedown', (e) => {
-        if (e.button === 0 && this.onShoot) this.onShoot();
+        if (e.button === 0 && this.joined && this.onShoot) this.onShoot();
       });
     }
 
@@ -241,8 +242,12 @@ export class Input {
     const s = this.keys.has('s') ? 1 : 0;
     const kb = w - s;
     if (this.isMobile) {
-      const touch = this._touchThrottle + this._gyroPitch;
-      return Math.max(-1, Math.min(1, Math.abs(touch) > 0.1 ? touch : kb));
+      const joy = this._touchThrottle;
+      const gyro = this._gyroPitch;
+      // joystick wins when engaged; gyro only kicks in when the joystick is
+      // centered, so a flat phone can't fight the joystick or block W/S
+      const v = Math.abs(joy) > 0.1 ? joy : (Math.abs(gyro) > 0.1 ? gyro : kb);
+      return Math.max(-1, Math.min(1, v));
     }
     return kb;
   }
@@ -252,8 +257,10 @@ export class Input {
     const d = this.keys.has('d') ? 1 : 0;
     const kb = d - a;
     if (this.isMobile) {
-      const touch = this._touchSteer + this._gyroYaw;
-      return Math.max(-1, Math.min(1, Math.abs(touch) > 0.1 ? touch : kb));
+      const joy = this._touchSteer;
+      const gyro = this._gyroYaw;
+      const v = Math.abs(joy) > 0.1 ? joy : (Math.abs(gyro) > 0.1 ? gyro : kb);
+      return Math.max(-1, Math.min(1, v));
     }
     return kb;
   }

@@ -19,6 +19,8 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
+renderer.domElement.tabIndex = 0;
+renderer.domElement.style.outline = 'none';
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -606,6 +608,9 @@ function joinGame() {
   hud.closeChat();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   joined = true;
+  input.joined = true;
+  renderer.domElement.focus();
+  window.focus();
   spawnSet = false;
   vehicle.health = vehicle.maxHealth;
 }
