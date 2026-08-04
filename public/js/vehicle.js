@@ -7,7 +7,7 @@ export const WORLD_RADIUS = 2000;
 
 const CAR_ENGINE = 32;
 const CAR_REVERSE_FORCE = 13;
-const CAR_MAX_SPEED = 78;
+const CAR_MAX_SPEED = 85;
 const CAR_NITRO_FORCE = 60;
 const CAR_MAX_NITRO_SPEED = 130;
 const CAR_OVERBOOST_FORCE = 100;
@@ -28,7 +28,7 @@ const CAR_BOUNCE_REST = 0.18;
 
 const OVERBOOST_DURATION = 2.5;
 
-const PLANE_BASE_SPEED = 42;
+const PLANE_BASE_SPEED = 95;
 const PLANE_BOOST_SPEED = 110;
 const PLANE_OVERBOOST_SPEED = 165;
 const PLANE_VY_RATE = 8;
@@ -43,7 +43,7 @@ const PLANE_ROLL_RESPONSE = 5.0;
 const PLANE_BANK_TURN = 1.2;
 const PLANE_YAW_INPUT_RATE = 1.0;
 const PLANE_MAX_PITCH = 1.2;
-const TAKEOFF_SPEED = 26;
+const TAKEOFF_SPEED = 40;
 
 export class Vehicle {
   constructor(x = 0, z = 0) {
@@ -194,8 +194,19 @@ export class Vehicle {
     } else {
       const grip = drifting ? CAR_DRIFT_GRIP : CAR_GRIP;
       const latForce = -rightSpeed * grip;
+      const prevSpeed = Math.hypot(this.velocity.x, this.velocity.z);
       this.velocity.x += (fwd.x * fwdForce + right.x * latForce) * dt;
       this.velocity.z += (fwd.z * fwdForce + right.z * latForce) * dt;
+      // preserve speed when turning — only drag should slow the car
+      const newSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+      if (newSpeed > 0.1 && prevSpeed > 0.1) {
+        const scale = prevSpeed / newSpeed;
+        this.velocity.x *= scale;
+        this.velocity.z *= scale;
+        // re-apply only the longitudinal force (drag/brake), not lateral
+        this.velocity.x += fwd.x * (fwdForce - force) * dt;
+        this.velocity.z += fwd.z * (fwdForce - force) * dt;
+      }
     }
 
     if (this.carFalling) {
@@ -245,7 +256,7 @@ export class Vehicle {
     const yawInput = input.yaw;
 
     this.usingNitro = false;
-    let targetSpeed = PLANE_BASE_SPEED;
+    let targetSpeed = PLANE_BOOST_SPEED;
     if (input.nitro) {
       targetSpeed = this.overboost ? PLANE_OVERBOOST_SPEED : PLANE_BOOST_SPEED;
       this.usingNitro = true;
@@ -258,7 +269,7 @@ export class Vehicle {
 
     // on the ground: the plane auto-accelerates down the runway (brake to hold)
     if (grounded) {
-      const spoolTarget = rawThrottle < 0 ? 15 : PLANE_BASE_SPEED;
+      const spoolTarget = rawThrottle < 0 ? 15 : PLANE_BOOST_SPEED;
       targetSpeed = Math.min(targetSpeed, spoolTarget);
       if (this.speed < 20) {
         this.pitch = this._lerpAngle(this.pitch, 0, 1 - Math.exp(-dt * 2.5));
