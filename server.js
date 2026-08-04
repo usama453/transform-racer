@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/lib', express.static(path.join(__dirname, 'node_modules/three/build')));
 app.use('/libsio', express.static(path.join(__dirname, 'node_modules/socket.io/client-dist')));
 
-const WORLD_RADIUS = 2000;
+const WORLD_RADIUS = 3000;
 
 const COLORS = [
   '#ff4d4d', '#4dff88', '#4dc3ff', '#ffd84d',
@@ -23,6 +23,9 @@ const COLORS = [
 
 const players = new Map();
 let colorIdx = 0;
+
+const projectiles = [];
+let projectileId = 0;
 
 function spawnPoint() {
   const angle = Math.random() * Math.PI * 2;
@@ -58,9 +61,74 @@ function createPlayer(socket) {
     mode: 'car',
     speed: 0,
     nitro: 100,
-    lastUpdate: 0
+    health: 3,
+    lastUpdate: 0,
+    lastShot: 0
   };
   return player;
+}
+
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      projectiles.splice(i, 1);
+      continue;
+    }
+    p.x += p.dx * dt;
+    p.y += p.dy * dt;
+    p.z += p.dz * dt;
+
+    for (const [id, player] of players) {
+      if (id === p.owner) continue;
+      if (player.health <= 0) continue;
+      const dx = p.x - player.x;
+      const dy = p.y - player.y;
+      const dz = p.z - player.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < 4.0) {
+        const killed = player.health <= 1;
+        player.health = Math.max(0, player.health - 1);
+
+        io.emit('hit', {
+          targetId: id,
+          targetName: player.name,
+          shooterId: p.owner,
+          shooterName: players.get(p.owner)?.name || 'Unknown',
+          health: player.health
+        });
+
+        if (killed) {
+          const spawn = spawnPoint();
+          player.x = spawn.x;
+          player.y = spawn.y;
+          player.z = spawn.z;
+          player.yaw = spawn.yaw;
+          player.pitch = 0;
+          player.roll = 0;
+          player.health = 3;
+          player.mode = 'car';
+          io.emit('playerRespawned', {
+            id,
+            x: player.x,
+            y: player.y,
+            z: player.z,
+            yaw: player.yaw
+          });
+          io.emit('kill', {
+            killerId: p.owner,
+            killerName: players.get(p.owner)?.name || 'Unknown',
+            victimId: id,
+            victimName: player.name
+          });
+        }
+
+        projectiles.splice(i, 1);
+        break;
+      }
+    }
+  }
 }
 
 io.on('connection', (socket) => {
@@ -69,13 +137,11 @@ io.on('connection', (socket) => {
 
   console.log(`[+] ${player.name} joined (${socket.id}) - ${players.size} online`);
 
-  // Send full world snapshot to the new player
   socket.emit('init', {
     id: socket.id,
     players: Array.from(players.values()).map(p => ({ ...p }))
   });
 
-  // Tell everyone else about this player
   socket.broadcast.emit('playerJoined', { ...player });
 
   socket.on('setName', (name) => {
@@ -94,7 +160,7 @@ io.on('connection', (socket) => {
   socket.on('update', (data) => {
     if (!data || typeof data !== 'object') return;
     const now = Date.now();
-    if (now - player.lastUpdate < 30) return; // ~33 updates/sec max
+    if (now - player.lastUpdate < 30) return;
     player.lastUpdate = now;
 
     player.x = sanitizeFloat(data.x, -WORLD_RADIUS, WORLD_RADIUS, player.x);
@@ -111,7 +177,42 @@ io.on('connection', (socket) => {
       id: socket.id,
       x: player.x, y: player.y, z: player.z,
       yaw: player.yaw, pitch: player.pitch, roll: player.roll,
-      mode: player.mode, speed: player.speed, nitro: player.nitro
+      mode: player.mode, speed: player.speed, nitro: player.nitro,
+      health: player.health
+    });
+  });
+
+  socket.on('shoot', (data) => {
+    if (!data || typeof data !== 'object') return;
+    const now = Date.now();
+    if (now - player.lastShot < 250) return;
+    player.lastShot = now;
+
+    const x = sanitizeFloat(data.x, -WORLD_RADIUS, WORLD_RADIUS, player.x);
+    const y = sanitizeFloat(data.y, -200, 3000, player.y);
+    const z = sanitizeFloat(data.z, -WORLD_RADIUS, WORLD_RADIUS, player.z);
+    const dx = sanitizeFloat(data.dx, -200, 200, 0);
+    const dy = sanitizeFloat(data.dy, -200, 200, 0);
+    const dz = sanitizeFloat(data.dz, -200, 200, 0);
+
+    const speed = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (speed < 10 || speed > 300) return;
+
+    projectiles.push({
+      id: projectileId++,
+      owner: socket.id,
+      x, y, z,
+      dx: dx * 2.5, dy: dy * 2.5, dz: dz * 2.5,
+      life: 2.5,
+      color: player.color
+    });
+
+    socket.broadcast.emit('projectile', {
+      id: projectileId - 1,
+      owner: socket.id,
+      x, y, z,
+      dx: dx * 2.5, dy: dy * 2.5, dz: dz * 2.5,
+      color: player.color
     });
   });
 
@@ -127,6 +228,15 @@ io.on('connection', (socket) => {
     console.log(`[-] ${player.name} left (${socket.id}) - ${players.size} online`);
   });
 });
+
+const TICK_RATE = 1 / 20;
+let lastTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const dt = (now - lastTick) / 1000;
+  lastTick = now;
+  updateProjectiles(dt);
+}, TICK_RATE * 1000);
 
 server.listen(PORT, () => {
   console.log(`============================================`);

@@ -18,42 +18,37 @@ export class Minimap {
 
     ctx.clearRect(0, 0, size, size);
 
-    // background disc
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, this.mapR + 2, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(10, 16, 30, 0.78)';
+    ctx.fillStyle = 'rgba(5, 5, 16, 0.85)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0, 180, 255, 0.35)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // world boundary
     ctx.beginPath();
     ctx.arc(cx, cy, this.mapR, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,90,90,0.5)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 40, 60, 0.4)';
+    ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
 
     const px = (wx) => cx + (wx - own.position.x) * this.scale;
     const py = (wz) => cy + (wz - own.position.z) * this.scale;
 
-    // runway (along -Z/+Z through center)
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0, 180, 255, 0.12)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(cx, py(200));
     ctx.lineTo(cx, py(-200));
     ctx.stroke();
 
-    // center tower
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillStyle = 'rgba(0, 200, 255, 0.3)';
     ctx.beginPath();
     ctx.arc(cx, cy, 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // remote players
     const ids = [];
     for (const p of players.values()) {
       ids.push(p.id);
@@ -71,11 +66,10 @@ export class Minimap {
       ctx.fillStyle = p.color || '#ffffff';
       ctx.fill();
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
       ctx.stroke();
     }
 
-    // own position: cyan triangle with direction
     const fwd = own.forward;
     const fdx = fwd.x;
     const fdz = fwd.z;
@@ -88,10 +82,10 @@ export class Minimap {
     ctx.lineTo(4.5, 5);
     ctx.lineTo(-4.5, 5);
     ctx.closePath();
-    ctx.fillStyle = '#33ccff';
+    ctx.fillStyle = '#00ccff';
     ctx.fill();
     ctx.lineWidth = 1;
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = '#003344';
     ctx.stroke();
     ctx.restore();
   }

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export const GROUND_Y = 0;
 export const CAR_BODY_Y = 1.0;
 export const PLANE_GROUND_Y = CAR_BODY_Y + 0.4;
-export const WORLD_RADIUS = 2000;
+export const WORLD_RADIUS = 3000;
 
 const CAR_ENGINE = 32;
 const CAR_REVERSE_FORCE = 13;
@@ -65,6 +65,13 @@ export class Vehicle {
     this.carFalling = false;
     this.onBounce = null;
     this.speedPreserveTimer = 0;
+
+    this.health = 3;
+    this.maxHealth = 3;
+    this.invulnerable = false;
+    this.invulnTimer = 0;
+    this.shootCooldown = 0;
+    this.shootRate = 0.25;
 
     this._e = new THREE.Euler(0, 0, 0, 'YXZ');
     this._q = new THREE.Quaternion();
@@ -139,6 +146,13 @@ export class Vehicle {
     }
 
     this.nitro = 100;
+
+    if (this.invulnerable) {
+      this.invulnTimer -= dt;
+      if (this.invulnTimer <= 0) this.invulnerable = false;
+    }
+    if (this.shootCooldown > 0) this.shootCooldown -= dt;
+
     this.enforceBounds(dt);
   }
 
@@ -318,6 +332,47 @@ export class Vehicle {
         this.velocity.y = 0;
       }
     }
+  }
+
+  takeDamage() {
+    if (this.invulnerable) return false;
+    this.health--;
+    this.invulnerable = true;
+    this.invulnTimer = 2.0;
+    if (this.health <= 0) {
+      this.respawn();
+      return true;
+    }
+    return false;
+  }
+
+  respawn() {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 60 + Math.random() * 220;
+    this.position.set(Math.cos(angle) * radius, CAR_BODY_Y, Math.sin(angle) * radius);
+    this.velocity.set(0, 0, 0);
+    this.yaw = Math.atan2(-Math.sin(angle), -Math.cos(angle));
+    this.pitch = 0;
+    this.roll = 0;
+    this.health = this.maxHealth;
+    this.invulnerable = true;
+    this.invulnTimer = 3.0;
+    if (this.mode !== 'car') {
+      this.mode = 'car';
+      this.transforming = false;
+    }
+    this.carFalling = false;
+    this.nitro = 100;
+  }
+
+  canShoot() {
+    return this.shootCooldown <= 0;
+  }
+
+  shoot() {
+    if (!this.canShoot()) return false;
+    this.shootCooldown = this.shootRate;
+    return true;
   }
 
   enforceBounds(dt) {

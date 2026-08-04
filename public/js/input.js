@@ -6,6 +6,7 @@ export class Input {
     this.onChatOpen = null;
     this.onCameraToggle = null;
     this.onDoubleShift = null;
+    this.onShoot = null;
     this.lastShiftDown = 0;
     this._shiftArmed = false;
 
@@ -20,6 +21,7 @@ export class Input {
     this._touchYaw = 0;
     this._touchNitro = false;
     this._touchHandbrake = false;
+    this._touchShoot = false;
 
     // Gyroscope state
     this._gyroEnabled = false;
@@ -68,6 +70,12 @@ export class Input {
 
     window.addEventListener('blur', () => this.keys.clear());
 
+    if (!this.isMobile) {
+      window.addEventListener('mousedown', (e) => {
+        if (e.button === 0 && this.onShoot) this.onShoot();
+      });
+    }
+
     // Mobile setup
     if (this.isMobile) {
       this._setupTouchControls();
@@ -95,6 +103,7 @@ export class Input {
         </div>
       </div>
       <div id="touch-right" class="touch-zone">
+        <button id="btn-shoot" class="touch-btn btn-action btn-shoot">FIRE</button>
         <button id="btn-nitro" class="touch-btn btn-action">NOS</button>
         <button id="btn-drift" class="touch-btn btn-action">DRIFT</button>
         <button id="btn-transform" class="touch-btn btn-transform">F</button>
@@ -159,6 +168,7 @@ export class Input {
     const btnDrift = document.getElementById('btn-drift');
     const btnTransform = document.getElementById('btn-transform');
     const btnCamera = document.getElementById('btn-camera');
+    const btnShoot = document.getElementById('btn-shoot');
     const btnYawL = document.getElementById('btn-yaw-left');
     const btnYawR = document.getElementById('btn-yaw-right');
 
@@ -181,6 +191,11 @@ export class Input {
     btnCamera.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (this.onCameraToggle) this.onCameraToggle();
+    }, { passive: false });
+
+    btnShoot.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (this.onShoot) this.onShoot();
     }, { passive: false });
   }
 

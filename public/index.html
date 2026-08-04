@@ -29,6 +29,7 @@
         <div><b>A/D</b> Steer / Roll</div>
         <div><b>SHIFT</b> Nitrous / Boost (tap 2x = 2x power)</div>
         <div><b>SPACE</b> Drift (car)</div>
+        <div><b>CLICK</b> Shoot laser</div>
         <div><b>Q/E</b> Yaw (plane)</div>
         <div><b>F</b> Transform mode</div>
         <div><b>C</b> Camera view</div>
@@ -46,15 +47,22 @@
       <div id="speed-num">0</div>
       <div id="speed-unit">km/h</div>
     </div>
+    <div id="health-panel">
+      <div class="health-label">HULL</div>
+      <div id="health-bar"><div id="health-fill"></div></div>
+    </div>
     <div id="nitro-panel">
       <div class="nitro-label">NITROUS / BOOST</div>
       <div id="nitro-bar"><div id="nitro-fill"></div></div>
     </div>
+    <div id="shoot-indicator" class="ready">FIRE</div>
     <canvas id="minimap" width="150" height="150"></canvas>
     <div id="transform-hint">Press <b>F</b> to transform</div>
     <div id="warning" class="hidden"></div>
 
     <div id="edge-tags"></div>
+    <div id="kill-feed"></div>
+    <div id="hit-flash"></div>
 
     <div id="chat-box">
       <div id="chat-log"></div>

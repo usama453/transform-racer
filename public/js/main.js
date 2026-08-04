@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { Vehicle, PLANE_GROUND_Y } from './vehicle.js';
+import { Vehicle, PLANE_GROUND_Y, WORLD_RADIUS } from './vehicle.js';
 import { Input } from './input.js';
 import { Network } from './network.js';
 import { HUD } from './hud.js';
 import { createWorld, updateWorld } from './world.js';
-import { buildVehicle, setVehicleMode, animateVehicle } from './render.js';
+import { buildVehicle, setVehicleMode, animateVehicle, buildLaser } from './render.js';
 import { SoundManager } from './audio.js';
 import { Minimap } from './minimap.js';
 
@@ -12,12 +12,13 @@ const OVERLAY = document.getElementById('start-overlay');
 const JOIN_BTN = document.getElementById('join-btn');
 const NAME_INPUT = document.getElementById('name-input');
 
-// ---------- renderer / scene ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -32,7 +33,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------- game state ----------
 const input = new Input();
 const net = new Network();
 const hud = new HUD(net);
@@ -65,7 +65,6 @@ vehicle.onBounce = (vy) => {
   }
 };
 
-// ---------- name labels ----------
 let myName = 'Pilot';
 let myLabel = null;
 
@@ -81,8 +80,7 @@ function ensureOwnLabel() {
   scene.add(myLabel);
 }
 
-// ---------- remote players ----------
-const remotes = new Map(); // id -> { mesh, curPos, curQuat, targetPos, targetQuat, label, mode }
+const remotes = new Map();
 
 function makeLabel(name, color) {
   const measure = document.createElement('canvas').getContext('2d');
@@ -114,8 +112,6 @@ function makeLabel(name, color) {
   return sprite;
 }
 
-// sizeAttenuation:false keeps the sprite a constant on-screen size;
-// screen px = scale * fY * viewportHeight, so keep it fixed across FOV/speed.
 function sizeLabel(sprite) {
   const tanHalf = Math.tan(camera.fov / 2 * Math.PI / 180);
   const pxPerScale = (0.3845 * window.innerHeight) / tanHalf;
@@ -185,16 +181,15 @@ function ensureRemotes() {
   }
 }
 
-// ---------- particles ----------
 function createParticles(scene) {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
   const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.4, 'rgba(255,200,120,0.9)');
-  g.addColorStop(1, 'rgba(255,120,40,0)');
+  g.addColorStop(0, 'rgba(0,200,255,1)');
+  g.addColorStop(0.4, 'rgba(100,0,255,0.9)');
+  g.addColorStop(1, 'rgba(0,100,200,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
   const tex = new THREE.CanvasTexture(canvas);
@@ -242,7 +237,7 @@ function createParticles(scene) {
 function createTransformFlash(scene) {
   const geo = new THREE.SphereGeometry(1, 16, 16);
   const mat = new THREE.MeshBasicMaterial({
-    color: 0x99ddff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    color: 0x00ccff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.visible = false;
@@ -250,7 +245,99 @@ function createTransformFlash(scene) {
   return { mesh, life: 0 };
 }
 
-// ---------- camera ----------
+const activeProjectiles = [];
+const enemyProjectiles = [];
+
+function spawnProjectile(x, y, z, dx, dy, dz, color, isMine) {
+  const mesh = buildLaser(color);
+  mesh.position.set(x, y, z);
+  const dir = new THREE.Vector3(dx, dy, dz).normalize();
+  const lookTarget = new THREE.Vector3(x + dir.x, y + dir.y, z + dir.z);
+  mesh.lookAt(lookTarget);
+  scene.add(mesh);
+  const entry = {
+    mesh,
+    pos: new THREE.Vector3(x, y, z),
+    vel: new THREE.Vector3(dx * 2.5, dy * 2.5, dz * 2.5),
+    life: 2.5,
+    isMine
+  };
+  if (isMine) activeProjectiles.push(entry);
+  else enemyProjectiles.push(entry);
+}
+
+function updateProjectiles(dt) {
+  for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+    const p = activeProjectiles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      activeProjectiles.splice(i, 1);
+      continue;
+    }
+    p.pos.addScaledVector(p.vel, dt);
+    p.mesh.position.copy(p.pos);
+  }
+  for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+    const p = enemyProjectiles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      enemyProjectiles.splice(i, 1);
+      continue;
+    }
+    p.pos.addScaledVector(p.vel, dt);
+    p.mesh.position.copy(p.pos);
+  }
+}
+
+net.onProjectile = (data) => {
+  spawnProjectile(data.x, data.y, data.z, data.dx, data.dy, data.dz, data.color, false);
+};
+
+net.onHit = (data) => {
+  if (data.targetId === net.myId) {
+    vehicle.health = data.health;
+    if (vehicle.health <= 0) {
+      vehicle.respawn();
+      spawnSet = true;
+      const me = net.players.get(net.myId);
+      if (me) {
+        vehicle.position.set(me.x, me.y, me.z);
+        vehicle.yaw = me.yaw;
+      }
+    }
+    hud.showHitFlash();
+  }
+  const rp = remotes.get(data.targetId);
+  if (rp) {
+    for (let i = 0; i < 8; i++) {
+      particles.spawn(
+        rp.curPos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 2, (Math.random() - 0.5) * 2)),
+        new THREE.Vector3((Math.random() - 0.5) * 12, Math.random() * 8, (Math.random() - 0.5) * 12),
+        0.7, 0.6
+      );
+    }
+  }
+};
+
+net.onKill = (data) => {
+  const killerName = data.killerName || 'Unknown';
+  const victimName = data.victimName || 'Unknown';
+  hud.showKillFeed(killerName, victimName);
+};
+
+net.onPlayerRespawned = (data) => {
+  if (data.id === net.myId) {
+    spawnSet = true;
+    const me = net.players.get(net.myId);
+    if (me) {
+      vehicle.position.set(me.x, me.y, me.z);
+      vehicle.yaw = me.yaw;
+    }
+  }
+};
+
 const lookTarget = new THREE.Vector3();
 const fwdTmp = new THREE.Vector3();
 
@@ -296,7 +383,6 @@ function updateCamera(dt) {
   }
 }
 
-// ---------- input / control ----------
 const neutralInput = { throttle: 0, steer: 0, yaw: 0, nitro: false, handbrake: false };
 
 function readInput() {
@@ -333,12 +419,56 @@ input.onDoubleShift = () => {
   if (joined) vehicle.activateOverboost();
 };
 
+input.onShoot = () => {
+  if (!joined) return;
+  if (!vehicle.canShoot()) return;
+  vehicle.shoot();
+
+  const fwd = vehicle.forward;
+  const shootDir = fwd.clone();
+  spawnProjectile(
+    vehicle.position.x + fwd.x * 2,
+    vehicle.position.y + fwd.y * 2,
+    vehicle.position.z + fwd.z * 2,
+    shootDir.x, shootDir.y, shootDir.z,
+    '#33ccff', true
+  );
+
+  net.sendShoot(
+    vehicle.position.x + fwd.x * 2,
+    vehicle.position.y + fwd.y * 2,
+    vehicle.position.z + fwd.z * 2,
+    shootDir.x, shootDir.y, shootDir.z
+  );
+
+  for (let i = 0; i < 4; i++) {
+    particles.spawn(
+      vehicle.position.clone().addScaledVector(fwd, 2).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        (Math.random() - 0.5) * 0.5,
+        (Math.random() - 0.5) * 0.5
+      )),
+      fwd.clone().multiplyScalar(20).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6
+      )),
+      0.4, 0.3
+    );
+  }
+};
+
 soundBtn.addEventListener('click', () => input.onMute());
 
-// ---------- own vehicle visual ----------
 function updateOwnVisual(dt) {
   vehicleMesh.position.copy(vehicle.position);
   vehicleMesh.rotation.set(vehicle.pitch, vehicle.yaw, vehicle.roll, 'YXZ');
+
+  if (vehicle.invulnerable) {
+    vehicleMesh.visible = Math.floor(performance.now() / 80) % 2 === 0;
+  } else {
+    vehicleMesh.visible = cameraView === 'chase';
+  }
 
   if (vehicle.transforming) {
     const p = vehicle.transformProgress;
@@ -376,7 +506,6 @@ function updateOwnVisual(dt) {
     steer: readInput().steer
   });
 
-  // boost particles
   if (vehicle.usingNitro) {
     const fwd = vehicle.forward;
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(vehicleMesh.quaternion);
@@ -392,7 +521,6 @@ function updateOwnVisual(dt) {
     }
   }
 
-  // own name label
   if (myLabel) {
     myLabel.position.copy(vehicle.position);
     myLabel.position.y = vehicle.position.y + (displayedMode === 'plane' ? 2.6 : 2.1);
@@ -401,7 +529,6 @@ function updateOwnVisual(dt) {
   }
 }
 
-// ---------- off-screen player indicators ----------
 const edgeTags = new Map();
 const EDGE_MARGIN = 30;
 const tagProject = new THREE.Vector3();
@@ -466,7 +593,6 @@ function updateEdgeTags() {
   }
 }
 
-// ---------- networking / join ----------
 let joinPressed = false;
 
 function joinGame() {
@@ -481,6 +607,7 @@ function joinGame() {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   joined = true;
   spawnSet = false;
+  vehicle.health = vehicle.maxHealth;
 }
 
 JOIN_BTN.addEventListener('click', joinGame);
@@ -513,7 +640,6 @@ setTimeout(() => {
   if (!net.connected) hud.setError('Cannot reach server. Run "npm start" first.');
 }, 6000);
 
-// ---------- main loop ----------
 const clock = new THREE.Clock();
 
 function animate() {
@@ -539,6 +665,7 @@ function animate() {
   updateOwnVisual(dt);
   updateCamera(dt);
   particles.update(dt);
+  updateProjectiles(dt);
   updateWorld(world, dt);
 
   const others = Array.from(net.players.values()).filter((p) => p.id !== net.myId);
@@ -560,7 +687,11 @@ function animate() {
     nitro: vehicle.nitro,
     overboost: vehicle.overboost,
     boostFrac: vehicle.boostFrac,
-    players: net.players.size
+    players: net.players.size,
+    health: vehicle.health,
+    maxHealth: vehicle.maxHealth,
+    cooldown: vehicle.shootCooldown,
+    shootRate: vehicle.shootRate
   });
 
   net.sendUpdate(vehicle);
@@ -568,11 +699,10 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// boundary warning
 setInterval(() => {
   if (!joined) return;
   const dist = Math.sqrt(vehicle.position.x ** 2 + vehicle.position.z ** 2);
-  if (dist > 1900) hud.showWarning('RETURN TO THE ISLAND');
+  if (dist > WORLD_RADIUS - 200) hud.showWarning('RETURN TO THE GRID');
 }, 1500);
 
 animate();

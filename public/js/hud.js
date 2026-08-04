@@ -13,14 +13,20 @@ export class HUD {
     this.chatInput = $('chat-input');
     this.statusEl = $('server-status');
     this.nameInput = $('name-input');
+    this.healthBar = $('health-fill');
+    this.shootIndicator = $('shoot-indicator');
+    this.killFeedEl = $('kill-feed');
+    this.hitFlashEl = $('hit-flash');
     this.chatTimer = null;
     this.warnTimer = null;
+    this.killFeedTimer = null;
 
     this.lastSpeed = -1;
     this.lastNitro = -1;
     this.lastMode = '';
     this.lastCount = -1;
     this.lastOverboost = false;
+    this.lastHealth = -1;
 
     network.onChat = (msg) => this.addChatMessage(msg.name, msg.text, msg.id === network.myId);
   }
@@ -53,7 +59,7 @@ export class HUD {
   }
 
   update(v) {
-    const { mode, speed, nitro, overboost, boostFrac, players } = v;
+    const { mode, speed, nitro, overboost, boostFrac, players, health, maxHealth, cooldown, shootRate } = v;
 
     if (mode !== this.lastMode) {
       this.lastMode = mode;
@@ -79,6 +85,23 @@ export class HUD {
       this.nitroLabel.textContent = overboost ? '2X BOOST ACTIVE' : 'NITROUS / BOOST';
     }
 
+    if (health !== undefined && health !== this.lastHealth) {
+      this.lastHealth = health;
+      if (this.healthBar) {
+        const hp = Math.max(0, health / maxHealth) * 100;
+        this.healthBar.style.width = `${hp}%`;
+        this.healthBar.className = '';
+        if (hp <= 33) this.healthBar.classList.add('health-critical');
+        else if (hp <= 66) this.healthBar.classList.add('health-warning');
+      }
+    }
+
+    if (this.shootIndicator) {
+      const ready = cooldown <= 0;
+      this.shootIndicator.classList.toggle('ready', ready);
+      this.shootIndicator.classList.toggle('cooldown', !ready);
+    }
+
     this.setOnline(players);
   }
 
@@ -89,6 +112,27 @@ export class HUD {
     this.warnTimer = setTimeout(() => {
       this.warningEl.classList.add('hidden');
     }, 1800);
+  }
+
+  showHitFlash() {
+    if (!this.hitFlashEl) return;
+    this.hitFlashEl.classList.add('active');
+    setTimeout(() => this.hitFlashEl.classList.remove('active'), 200);
+  }
+
+  showKillFeed(killerName, victimName) {
+    if (!this.killFeedEl) return;
+    const entry = document.createElement('div');
+    entry.className = 'kill-entry';
+    entry.innerHTML = `<span class="killer">${killerName}</span> eliminated <span class="victim">${victimName}</span>`;
+    this.killFeedEl.appendChild(entry);
+    while (this.killFeedEl.children.length > 5) {
+      this.killFeedEl.removeChild(this.killFeedEl.firstChild);
+    }
+    clearTimeout(this.killFeedTimer);
+    this.killFeedTimer = setTimeout(() => {
+      this.killFeedEl.innerHTML = '';
+    }, 5000);
   }
 
   openChat() {
@@ -106,7 +150,7 @@ export class HUD {
     div.className = 'msg';
     const nameEl = document.createElement('span');
     nameEl.className = 'name';
-    nameEl.style.color = mine ? '#4dc3ff' : '#ffd84d';
+    nameEl.style.color = mine ? '#00ccff' : '#ff00ff';
     nameEl.textContent = name + ':';
     div.appendChild(nameEl);
     div.appendChild(document.createTextNode(text));

@@ -4,21 +4,31 @@ export function buildVehicle(color) {
   const root = new THREE.Group();
 
   const primary = new THREE.Color(color);
-  const dark = primary.clone().multiplyScalar(0.5);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: primary, roughness: 0.3, metalness: 0.55 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.35, metalness: 0.5 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x1b2b3a, roughness: 0.1, metalness: 0.9 });
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.95 });
-  const hubMat = new THREE.MeshStandardMaterial({ color: 0xcfcfcf, metalness: 0.9, roughness: 0.25 });
+  const dark = primary.clone().multiplyScalar(0.3);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.2, metalness: 0.7 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0a0a1a, roughness: 0.3, metalness: 0.6 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x003355, roughness: 0.05, metalness: 0.95, transparent: true, opacity: 0.7 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x0a0a14, roughness: 0.95 });
+  const hubMat = new THREE.MeshStandardMaterial({ color: primary, metalness: 0.9, roughness: 0.15, emissive: primary, emissiveIntensity: 0.3 });
+
   const glowMat = new THREE.MeshStandardMaterial({
-    color: 0xffaa33, emissive: 0xff7722, emissiveIntensity: 0.9
+    color: primary, emissive: primary, emissiveIntensity: 1.5
+  });
+  const glowBrightMat = new THREE.MeshBasicMaterial({
+    color: primary, transparent: true, opacity: 0.8
   });
 
-  // ---------- Shared chassis (used in both modes) ----------
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.7, 4.2), bodyMat);
   body.position.y = 0.62;
   body.castShadow = true;
   root.add(body);
+
+  const neonStrip = new THREE.Mesh(
+    new THREE.BoxGeometry(2.05, 0.06, 4.25),
+    glowBrightMat
+  );
+  neonStrip.position.y = 0.28;
+  root.add(neonStrip);
 
   const nose = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 1.1), darkMat);
   nose.position.set(0, 0.52, -2.35);
@@ -36,8 +46,14 @@ export function buildVehicle(color) {
   headlightR.position.x = 0.55;
   root.add(headlightR);
 
+  const headLight = new THREE.SpotLight(primary, 80, 60, 0.4, 0.5, 2);
+  headLight.position.set(0, 0.6, -2.8);
+  headLight.target.position.set(0, 0, -30);
+  root.add(headLight);
+  root.add(headLight.target);
+
   const taillightMat = new THREE.MeshStandardMaterial({
-    color: 0xff2244, emissive: 0xff2244, emissiveIntensity: 1.4
+    color: 0xff2244, emissive: 0xff2244, emissiveIntensity: 2.0
   });
   const tailL = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.06), taillightMat);
   tailL.position.set(-0.6, 0.62, 2.12);
@@ -46,7 +62,6 @@ export function buildVehicle(color) {
   tailR.position.x = 0.6;
   root.add(tailR);
 
-  // ---------- CAR PARTS ----------
   const carParts = new THREE.Group();
   carParts.name = 'carParts';
 
@@ -75,7 +90,6 @@ export function buildVehicle(color) {
     wheels.push({ pivot, spin });
   }
 
-  // spoiler
   const spoilerBar = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.12, 0.35), darkMat);
   spoilerBar.position.set(0, 1.15, 2.05);
   carParts.add(spoilerBar);
@@ -88,15 +102,20 @@ export function buildVehicle(color) {
 
   root.add(carParts);
 
-  // ---------- PLANE PARTS ----------
   const planeParts = new THREE.Group();
   planeParts.name = 'planeParts';
 
-  // wings
   const wing = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.14, 1.5), bodyMat);
   wing.position.y = 0.85;
   wing.castShadow = true;
   planeParts.add(wing);
+
+  const wingNeon = new THREE.Mesh(
+    new THREE.BoxGeometry(8.5, 0.04, 0.08),
+    glowBrightMat
+  );
+  wingNeon.position.y = 0.93;
+  planeParts.add(wingNeon);
 
   const wingtipL = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.9), glowMat);
   wingtipL.position.set(-4.4, 0.85, 0);
@@ -105,7 +124,6 @@ export function buildVehicle(color) {
   wingtipR.position.x = 4.4;
   planeParts.add(wingtipR);
 
-  // tail
   const tailVert = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.1, 1.1), bodyMat);
   tailVert.position.set(0, 1.35, 2.2);
   planeParts.add(tailVert);
@@ -113,7 +131,6 @@ export function buildVehicle(color) {
   tailHoriz.position.set(0, 0.95, 2.3);
   planeParts.add(tailHoriz);
 
-  // propeller
   const prop = new THREE.Group();
   const propBlade = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.5, 0.08), darkMat);
   prop.add(propBlade);
@@ -122,9 +139,11 @@ export function buildVehicle(color) {
   prop.position.set(0, 0.62, -2.55);
   planeParts.add(prop);
 
-  // jet exhausts
   const flameMat = new THREE.MeshBasicMaterial({
-    color: 0xffa64d, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending
+    color: 0x00ccff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending
+  });
+  const flameMat2 = new THREE.MeshBasicMaterial({
+    color: 0xff00ff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending
   });
   const flameGeo = new THREE.ConeGeometry(0.28, 1.1, 12);
   flameGeo.translate(0, -0.55, 0);
@@ -139,13 +158,16 @@ export function buildVehicle(color) {
   planeParts.visible = false;
   root.add(planeParts);
 
-  // boost glow light
-  const boostLight = new THREE.PointLight(0xff9933, 0, 40, 2);
+  const boostLight = new THREE.PointLight(0x00ccff, 0, 40, 2);
   boostLight.position.set(0, 0.5, 2.2);
   root.add(boostLight);
 
+  const underGlow = new THREE.PointLight(primary, 0, 12, 2);
+  underGlow.position.set(0, 0.1, 0);
+  root.add(underGlow);
+
   root.userData = {
-    carParts, planeParts, wheels, prop, exhaustL, exhaustR, boostLight
+    carParts, planeParts, wheels, prop, exhaustL, exhaustR, boostLight, underGlow, primary
   };
 
   return root;
@@ -162,7 +184,6 @@ export function animateVehicle(root, dt, opts) {
   const d = root.userData;
   const { mode, speed, nitroActive, steer } = opts;
 
-  // wheel spin + steering
   for (const w of d.wheels) {
     if (mode === 'car') {
       w.spin.rotation.z += (speed * dt) / 0.36;
@@ -172,16 +193,14 @@ export function animateVehicle(root, dt, opts) {
     }
   }
 
-  // propeller
   if (mode === 'plane') {
     d.prop.rotation.z += dt * (8 + speed * 0.6);
-    // subtle banking of wings with roll handled by root transform
     const flameScale = nitroActive ? 1.9 : 0.9;
     d.exhaustL.scale.z = flameScale;
     d.exhaustR.scale.z = flameScale;
     d.exhaustL.scale.y = flameScale;
     d.exhaustR.scale.y = flameScale;
-    const glow = nitroActive ? 180 : 40;
+    const glow = nitroActive ? 200 : 40;
     d.boostLight.intensity += (glow - d.boostLight.intensity) * (1 - Math.exp(-dt * 6));
     d.exhaustL.material.opacity = nitroActive ? 1 : 0.55;
     d.exhaustR.material.opacity = d.exhaustL.material.opacity;
@@ -190,4 +209,31 @@ export function animateVehicle(root, dt, opts) {
     d.exhaustL.material.opacity = 0.55;
     d.exhaustR.material.opacity = 0.55;
   }
+
+  const underGlowIntensity = speed > 5 ? Math.min(3, speed * 0.04) : 0;
+  d.underGlow.intensity += (underGlowIntensity - d.underGlow.intensity) * (1 - Math.exp(-dt * 4));
+}
+
+export function buildLaser(color) {
+  const group = new THREE.Group();
+  const c = new THREE.Color(color);
+
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 2.0, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  core.rotation.x = Math.PI / 2;
+  group.add(core);
+
+  const glow = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2, 0.2, 2.0, 8),
+    new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending })
+  );
+  glow.rotation.x = Math.PI / 2;
+  group.add(glow);
+
+  const light = new THREE.PointLight(c, 8, 15);
+  group.add(light);
+
+  return group;
 }

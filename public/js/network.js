@@ -2,11 +2,15 @@ export class Network {
   constructor() {
     this.socket = null;
     this.connected = false;
-    this.players = new Map(); // id -> latest state
+    this.players = new Map();
     this.myId = null;
-    this.onState = null; // ({state, players}) called when a remote update arrives
+    this.onState = null;
     this.onConnected = null;
     this.onDisconnected = null;
+    this.onHit = null;
+    this.onKill = null;
+    this.onProjectile = null;
+    this.onPlayerRespawned = null;
     this.lastSent = 0;
     this.sendInterval = 50;
   }
@@ -59,10 +63,36 @@ export class Network {
       p.x = d.x; p.y = d.y; p.z = d.z;
       p.yaw = d.yaw; p.pitch = d.pitch; p.roll = d.roll;
       p.mode = d.mode; p.speed = d.speed; p.nitro = d.nitro;
+      if (d.health !== undefined) p.health = d.health;
     });
 
     this.socket.on('chat', (msg) => {
       if (this.onChat) this.onChat(msg);
+    });
+
+    this.socket.on('hit', (data) => {
+      if (this.onHit) this.onHit(data);
+    });
+
+    this.socket.on('kill', (data) => {
+      if (this.onKill) this.onKill(data);
+    });
+
+    this.socket.on('projectile', (data) => {
+      if (this.onProjectile) this.onProjectile(data);
+    });
+
+    this.socket.on('playerRespawned', (data) => {
+      const p = this.players.get(data.id);
+      if (p) {
+        p.x = data.x;
+        p.y = data.y;
+        p.z = data.z;
+        p.yaw = data.yaw;
+        p.health = 3;
+        p.mode = 'car';
+      }
+      if (this.onPlayerRespawned) this.onPlayerRespawned(data);
     });
   }
 
@@ -75,6 +105,10 @@ export class Network {
       yaw: state.yaw, pitch: state.pitch, roll: state.roll,
       mode: state.mode, speed: state.speed, nitro: state.nitro
     });
+  }
+
+  sendShoot(x, y, z, dx, dy, dz) {
+    this.socket.emit('shoot', { x, y, z, dx, dy, dz });
   }
 
   sendName(name) {
