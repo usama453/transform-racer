@@ -12,8 +12,8 @@ const CAR_NITRO_FORCE = 60;
 const CAR_MAX_NITRO_SPEED = 130;
 const CAR_OVERBOOST_FORCE = 100;
 const CAR_MAX_OVERBOOST_SPEED = 165;
-const CAR_DRAG = 0.035;
-const CAR_ROLLING = 0.1;
+const CAR_DRAG = 0.015;
+const CAR_ROLLING = 0.04;
 const CAR_SOFT_FADE = 0.75;
 const CAR_SOFT_TERM = 1.25;
 const CAR_SOFT_TAIL = 3.5;
@@ -64,6 +64,7 @@ export class Vehicle {
     this.overboostTimer = 0;
     this.carFalling = false;
     this.onBounce = null;
+    this.speedPreserveTimer = 0;
 
     this._e = new THREE.Euler(0, 0, 0, 'YXZ');
     this._q = new THREE.Quaternion();
@@ -110,9 +111,18 @@ export class Vehicle {
     if (this.transforming) {
       this.transformProgress = Math.min(1, this.transformProgress + dt * 2.4);
       if (this.transformProgress >= 1) {
+        const prevMode = this.mode;
         this.transforming = false;
         this.mode = this.nextMode;
-        if (this.mode === 'car') this.applyCarInertia();
+        if (this.mode === 'car') {
+          this.applyCarInertia();
+        } else {
+          // car→plane: keep the car's horizontal speed
+          if (prevMode === 'car') {
+            this.speed = Math.hypot(this.velocity.x, this.velocity.z);
+            this.speedPreserveTimer = 1.5;
+          }
+        }
       }
     }
 
@@ -264,7 +274,11 @@ export class Vehicle {
     this.yaw += yawRate * dt;
     this.pitch = this._clamp(this.pitch + pitchRate * dt, -PLANE_MAX_PITCH, PLANE_MAX_PITCH);
 
-    this.speed = this._lerp(this.speed, targetSpeed, 1 - Math.exp(-dt * PLANE_SPEED_RATE));
+    if (this.speedPreserveTimer > 0) {
+      this.speedPreserveTimer -= dt;
+    } else {
+      this.speed = this._lerp(this.speed, targetSpeed, 1 - Math.exp(-dt * PLANE_SPEED_RATE));
+    }
 
     const fwd = this.forward;
     this.velocity.x = fwd.x * this.speed;
