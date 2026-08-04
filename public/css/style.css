@@ -243,7 +243,7 @@ canvas {
 
 #health-panel {
   position: absolute;
-  bottom: 80px;
+  bottom: 120px;
   right: 26px;
   width: 130px;
   background: rgba(5, 8, 20, 0.7);
@@ -327,8 +327,8 @@ canvas {
 
 #shoot-indicator {
   position: absolute;
-  bottom: 26px;
-  right: 340px;
+  bottom: 92px;
+  right: 190px;
   padding: 8px 16px;
   border-radius: 10px;
   font-size: 13px;

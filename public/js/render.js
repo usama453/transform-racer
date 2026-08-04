@@ -214,23 +214,38 @@ export function animateVehicle(root, dt, opts) {
   d.underGlow.intensity += (underGlowIntensity - d.underGlow.intensity) * (1 - Math.exp(-dt * 4));
 }
 
-export function buildLaser(color) {
+export function buildMissile(color) {
   const group = new THREE.Group();
   const c = new THREE.Color(color);
 
-  const core = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 2.0, 6),
-    new THREE.MeshBasicMaterial({ color: 0xffffff })
-  );
-  core.rotation.x = Math.PI / 2;
-  group.add(core);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.35, metalness: 0.5 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.4 });
 
-  const glow = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.2, 0.2, 2.0, 8),
-    new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending })
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.1, 10), bodyMat);
+  body.rotation.x = Math.PI / 2;
+  body.position.z = 0.25;
+  group.add(body);
+
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.55, 10), accentMat);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.z = 1.05;
+  group.add(nose);
+
+  const finMat = new THREE.MeshStandardMaterial({ color: c, metalness: 0.8, roughness: 0.2 });
+  const finV = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.4), finMat);
+  finV.position.z = -0.4;
+  group.add(finV);
+  const finH = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.4), finMat);
+  finH.position.z = -0.4;
+  group.add(finH);
+
+  const flame = new THREE.Mesh(
+    new THREE.ConeGeometry(0.15, 0.7, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending })
   );
-  glow.rotation.x = Math.PI / 2;
-  group.add(glow);
+  flame.rotation.x = -Math.PI / 2;
+  flame.position.z = -0.8;
+  group.add(flame);
 
   const light = new THREE.PointLight(c, 8, 15);
   group.add(light);

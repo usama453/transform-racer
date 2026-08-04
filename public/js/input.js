@@ -52,6 +52,9 @@ export class Input {
       if (k === 'm') {
         if (this.onMute) this.onMute();
       }
+      if (k === 'g' && this.joined) {
+        if (this.onShoot) this.onShoot();
+      }
       if (k === 'enter' && this.onChatOpen) {
         this.onChatOpen();
       }
@@ -71,13 +74,6 @@ export class Input {
 
     window.addEventListener('blur', () => this.keys.clear());
 
-    if (!this.isMobile) {
-      window.addEventListener('mousedown', (e) => {
-        if (e.button === 0 && this.joined && this.onShoot) this.onShoot();
-      });
-    }
-
-    // Mobile setup
     if (this.isMobile) {
       this._setupTouchControls();
       this._setupGyroscope();
@@ -238,31 +234,27 @@ export class Input {
 
   // ---- Input getters ----
   get throttle() {
-    const w = this.keys.has('w') ? 1 : 0;
-    const s = this.keys.has('s') ? 1 : 0;
-    const kb = w - s;
-    if (this.isMobile) {
+    const kb = (this.keys.has('w') ? 1 : 0) - (this.keys.has('s') ? 1 : 0);
+    if (this.isMobile && kb === 0) {
       const joy = this._touchThrottle;
       const gyro = this._gyroPitch;
-      // joystick wins when engaged; gyro only kicks in when the joystick is
-      // centered, so a flat phone can't fight the joystick or block W/S
-      const v = Math.abs(joy) > 0.1 ? joy : (Math.abs(gyro) > 0.1 ? gyro : kb);
+      // keyboard wins; joystick wins over gyro; gyro only kicks in when
+      // both are idle, so a flat phone can't fight W/S or the joystick
+      const v = Math.abs(joy) > 0.1 ? joy : (Math.abs(gyro) > 0.1 ? gyro : 0);
       return Math.max(-1, Math.min(1, v));
     }
-    return kb;
+    return Math.max(-1, Math.min(1, kb));
   }
 
   get steer() {
-    const a = this.keys.has('a') ? 1 : 0;
-    const d = this.keys.has('d') ? 1 : 0;
-    const kb = d - a;
-    if (this.isMobile) {
+    const kb = (this.keys.has('d') ? 1 : 0) - (this.keys.has('a') ? 1 : 0);
+    if (this.isMobile && kb === 0) {
       const joy = this._touchSteer;
       const gyro = this._gyroYaw;
-      const v = Math.abs(joy) > 0.1 ? joy : (Math.abs(gyro) > 0.1 ? gyro : kb);
+      const v = Math.abs(joy) > 0.1 ? joy : (Math.abs(gyro) > 0.1 ? gyro : 0);
       return Math.max(-1, Math.min(1, v));
     }
-    return kb;
+    return Math.max(-1, Math.min(1, kb));
   }
 
   get yaw() {

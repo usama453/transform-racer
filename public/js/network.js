@@ -10,6 +10,7 @@ export class Network {
     this.onHit = null;
     this.onKill = null;
     this.onProjectile = null;
+    this.onProjectileRemove = null;
     this.onPlayerRespawned = null;
     this.lastSent = 0;
     this.sendInterval = 50;
@@ -82,6 +83,10 @@ export class Network {
       if (this.onProjectile) this.onProjectile(data);
     });
 
+    this.socket.on('projectileRemove', (data) => {
+      if (this.onProjectileRemove) this.onProjectileRemove(data);
+    });
+
     this.socket.on('playerRespawned', (data) => {
       const p = this.players.get(data.id);
       if (p) {
@@ -107,8 +112,8 @@ export class Network {
     });
   }
 
-  sendShoot(x, y, z, dx, dy, dz) {
-    this.socket.emit('shoot', { x, y, z, dx, dy, dz });
+  sendShoot(x, y, z, dx, dy, dz, targetId) {
+    this.socket.emit('shoot', { x, y, z, dx, dy, dz, targetId });
   }
 
   sendName(name) {

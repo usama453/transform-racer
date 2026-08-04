@@ -4,7 +4,7 @@ import { Input } from './input.js';
 import { Network } from './network.js';
 import { HUD } from './hud.js';
 import { createWorld, updateWorld } from './world.js';
-import { buildVehicle, setVehicleMode, animateVehicle, buildLaser } from './render.js';
+import { buildVehicle, setVehicleMode, animateVehicle, buildMissile } from './render.js';
 import { SoundManager } from './audio.js';
 import { Minimap } from './minimap.js';
 
@@ -247,54 +247,98 @@ function createTransformFlash(scene) {
   return { mesh, life: 0 };
 }
 
-const activeProjectiles = [];
-const enemyProjectiles = [];
+const MISSILE_SPEED = 55;
+const MISSILE_TURN = 2.6;
+const MISSILE_LIFE = 3.0;
+const MISSILE_LOCK_RANGE = 900;
 
-function spawnProjectile(x, y, z, dx, dy, dz, color, isMine) {
-  const mesh = buildLaser(color);
+const projectiles = [];
+let localMissileId = 0;
+const missileLook = new THREE.Vector3();
+const missileCur = new THREE.Vector3();
+const missileDesired = new THREE.Vector3();
+
+function spawnProjectile(x, y, z, vx, vy, vz, color, isMine, targetId, id) {
+  const mesh = buildMissile(color);
   mesh.position.set(x, y, z);
-  const dir = new THREE.Vector3(dx, dy, dz).normalize();
-  const lookTarget = new THREE.Vector3(x + dir.x, y + dir.y, z + dir.z);
-  mesh.lookAt(lookTarget);
+  missileLook.set(x + vx, y + vy, z + vz);
+  mesh.lookAt(missileLook);
   scene.add(mesh);
-  const entry = {
+  projectiles.push({
+    id: id || 'mine' + (++localMissileId),
     mesh,
     pos: new THREE.Vector3(x, y, z),
-    vel: new THREE.Vector3(dx * 2.5, dy * 2.5, dz * 2.5),
-    life: 2.5,
+    vel: new THREE.Vector3(vx, vy, vz),
+    targetId: targetId || null,
+    life: MISSILE_LIFE,
     isMine
-  };
-  if (isMine) activeProjectiles.push(entry);
-  else enemyProjectiles.push(entry);
+  });
+}
+
+function removeProjectile(id) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    if (projectiles[i].id === id) {
+      scene.remove(projectiles[i].mesh);
+      projectiles.splice(i, 1);
+      return;
+    }
+  }
+}
+
+function homeMissile(p, dt) {
+  if (!p.targetId) return;
+  let tx, ty, tz;
+  if (p.targetId === net.myId) {
+    tx = vehicle.position.x;
+    ty = vehicle.position.y;
+    tz = vehicle.position.z;
+  } else {
+    const s = net.players.get(p.targetId);
+    if (!s || s.health <= 0) return;
+    tx = s.x; ty = s.y; tz = s.z;
+  }
+  missileDesired.set(tx - p.pos.x, ty - p.pos.y, tz - p.pos.z);
+  const dlen = missileDesired.length();
+  if (dlen < 0.001) return;
+  missileDesired.divideScalar(dlen);
+  missileCur.copy(p.vel).normalize();
+  const dot = Math.max(-1, Math.min(1, missileCur.dot(missileDesired)));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return;
+  const t = Math.min(1, (MISSILE_TURN * dt) / omega);
+  const sinO = Math.sin(omega);
+  const s0 = Math.sin((1 - t) * omega) / sinO;
+  const s1 = Math.sin(t * omega) / sinO;
+  p.vel.set(
+    missileCur.x * s0 + missileDesired.x * s1,
+    missileCur.y * s0 + missileDesired.y * s1,
+    missileCur.z * s0 + missileDesired.z * s1
+  ).multiplyScalar(MISSILE_SPEED);
 }
 
 function updateProjectiles(dt) {
-  for (let i = activeProjectiles.length - 1; i >= 0; i--) {
-    const p = activeProjectiles[i];
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
     p.life -= dt;
     if (p.life <= 0) {
       scene.remove(p.mesh);
-      activeProjectiles.splice(i, 1);
+      projectiles.splice(i, 1);
       continue;
     }
+    homeMissile(p, dt);
     p.pos.addScaledVector(p.vel, dt);
     p.mesh.position.copy(p.pos);
-  }
-  for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
-    const p = enemyProjectiles[i];
-    p.life -= dt;
-    if (p.life <= 0) {
-      scene.remove(p.mesh);
-      enemyProjectiles.splice(i, 1);
-      continue;
-    }
-    p.pos.addScaledVector(p.vel, dt);
-    p.mesh.position.copy(p.pos);
+    missileLook.copy(p.pos).add(p.vel);
+    p.mesh.lookAt(missileLook);
   }
 }
 
 net.onProjectile = (data) => {
-  spawnProjectile(data.x, data.y, data.z, data.dx, data.dy, data.dz, data.color, false);
+  spawnProjectile(data.x, data.y, data.z, data.vx, data.vy, data.vz, data.color, false, data.targetId, data.id);
+};
+
+net.onProjectileRemove = (data) => {
+  removeProjectile(data.id);
 };
 
 net.onHit = (data) => {
@@ -427,25 +471,43 @@ input.onShoot = () => {
   vehicle.shoot();
 
   const fwd = vehicle.forward;
-  const shootDir = fwd.clone();
-  spawnProjectile(
-    vehicle.position.x + fwd.x * 2,
-    vehicle.position.y + fwd.y * 2,
-    vehicle.position.z + fwd.z * 2,
-    shootDir.x, shootDir.y, shootDir.z,
-    '#33ccff', true
-  );
+  const muzzle = vehicle.position.clone().addScaledVector(fwd, 2);
 
-  net.sendShoot(
-    vehicle.position.x + fwd.x * 2,
-    vehicle.position.y + fwd.y * 2,
-    vehicle.position.z + fwd.z * 2,
-    shootDir.x, shootDir.y, shootDir.z
-  );
+  let targetId = null;
+  let bestDist = Infinity;
+  for (const [id, s] of net.players) {
+    if (id === net.myId || s.health <= 0) continue;
+    const ddx = s.x - muzzle.x;
+    const ddy = s.y - muzzle.y;
+    const ddz = s.z - muzzle.z;
+    const d = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+    if (d < bestDist) { bestDist = d; targetId = id; }
+  }
+  if (bestDist > MISSILE_LOCK_RANGE) targetId = null;
+
+  let vx, vy, vz;
+  if (targetId) {
+    const s = net.players.get(targetId);
+    const ddx = s.x - muzzle.x;
+    const ddy = s.y - muzzle.y;
+    const ddz = s.z - muzzle.z;
+    const len = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) || 1;
+    vx = ddx / len * MISSILE_SPEED;
+    vy = ddy / len * MISSILE_SPEED;
+    vz = ddz / len * MISSILE_SPEED;
+  } else {
+    vx = fwd.x * MISSILE_SPEED;
+    vy = fwd.y * MISSILE_SPEED;
+    vz = fwd.z * MISSILE_SPEED;
+  }
+
+  spawnProjectile(muzzle.x, muzzle.y, muzzle.z, vx, vy, vz, '#33ccff', true, targetId);
+
+  net.sendShoot(muzzle.x, muzzle.y, muzzle.z, vx, vy, vz, targetId);
 
   for (let i = 0; i < 4; i++) {
     particles.spawn(
-      vehicle.position.clone().addScaledVector(fwd, 2).add(new THREE.Vector3(
+      muzzle.clone().add(new THREE.Vector3(
         (Math.random() - 0.5) * 0.5,
         (Math.random() - 0.5) * 0.5,
         (Math.random() - 0.5) * 0.5

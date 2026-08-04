@@ -208,19 +208,8 @@ export class Vehicle {
     } else {
       const grip = drifting ? CAR_DRIFT_GRIP : CAR_GRIP;
       const latForce = -rightSpeed * grip;
-      const prevSpeed = Math.hypot(this.velocity.x, this.velocity.z);
       this.velocity.x += (fwd.x * fwdForce + right.x * latForce) * dt;
       this.velocity.z += (fwd.z * fwdForce + right.z * latForce) * dt;
-      // preserve speed when turning — only drag should slow the car
-      const newSpeed = Math.hypot(this.velocity.x, this.velocity.z);
-      if (newSpeed > 0.1 && prevSpeed > 0.1) {
-        const scale = prevSpeed / newSpeed;
-        this.velocity.x *= scale;
-        this.velocity.z *= scale;
-        // re-apply only the longitudinal force (drag/brake), not lateral
-        this.velocity.x += fwd.x * (fwdForce - force) * dt;
-        this.velocity.z += fwd.z * (fwdForce - force) * dt;
-      }
     }
 
     if (this.carFalling) {

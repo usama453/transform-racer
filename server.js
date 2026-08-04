@@ -15,6 +15,11 @@ app.use('/libsio', express.static(path.join(__dirname, 'node_modules/socket.io/c
 
 const WORLD_RADIUS = 3000;
 
+const MISSILE_SPEED = 55;
+const MISSILE_TURN = 2.6;
+const MISSILE_LIFE = 3.0;
+const MISSILE_LOCK_RANGE = 900;
+
 const COLORS = [
   '#ff4d4d', '#4dff88', '#4dc3ff', '#ffd84d',
   '#ff7be0', '#a86bff', '#ff9a4d', '#4dffea',
@@ -68,17 +73,51 @@ function createPlayer(socket) {
   return player;
 }
 
+function slerpDir(cur, desired, turnRate, dt) {
+  const dot = Math.max(-1, Math.min(1, cur.x * desired.x + cur.y * desired.y + cur.z * desired.z));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return desired;
+  const t = Math.min(1, (turnRate * dt) / omega);
+  const sinO = Math.sin(omega);
+  const s0 = Math.sin((1 - t) * omega) / sinO;
+  const s1 = Math.sin(t * omega) / sinO;
+  return {
+    x: cur.x * s0 + desired.x * s1,
+    y: cur.y * s0 + desired.y * s1,
+    z: cur.z * s0 + desired.z * s1
+  };
+}
+
 function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.life -= dt;
     if (p.life <= 0) {
+      io.emit('projectileRemove', { id: p.id });
       projectiles.splice(i, 1);
       continue;
     }
-    p.x += p.dx * dt;
-    p.y += p.dy * dt;
-    p.z += p.dz * dt;
+
+    if (p.targetId) {
+      const t = players.get(p.targetId);
+      if (t && t.health > 0) {
+        const ddx = t.x - p.x;
+        const ddy = t.y - p.y;
+        const ddz = t.z - p.z;
+        const dlen = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) || 1;
+        const desired = { x: ddx / dlen, y: ddy / dlen, z: ddz / dlen };
+        const vlen = Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz) || 1;
+        const cur = { x: p.vx / vlen, y: p.vy / vlen, z: p.vz / vlen };
+        const dir = slerpDir(cur, desired, MISSILE_TURN, dt);
+        p.vx = dir.x * MISSILE_SPEED;
+        p.vy = dir.y * MISSILE_SPEED;
+        p.vz = dir.z * MISSILE_SPEED;
+      }
+    }
+
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.z += p.vz * dt;
 
     for (const [id, player] of players) {
       if (id === p.owner) continue;
@@ -124,6 +163,7 @@ function updateProjectiles(dt) {
           });
         }
 
+        io.emit('projectileRemove', { id: p.id });
         projectiles.splice(i, 1);
         break;
       }
@@ -191,27 +231,57 @@ io.on('connection', (socket) => {
     const x = sanitizeFloat(data.x, -WORLD_RADIUS, WORLD_RADIUS, player.x);
     const y = sanitizeFloat(data.y, -200, 3000, player.y);
     const z = sanitizeFloat(data.z, -WORLD_RADIUS, WORLD_RADIUS, player.z);
-    const dx = sanitizeFloat(data.dx, -200, 200, 0);
-    const dy = sanitizeFloat(data.dy, -200, 200, 0);
-    const dz = sanitizeFloat(data.dz, -200, 200, 0);
 
-    const speed = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (speed < 10 || speed > 300) return;
+    let targetId = null;
+    let bestDist = Infinity;
+    for (const [id, p] of players) {
+      if (id === socket.id || p.health <= 0) continue;
+      const ddx = p.x - x;
+      const ddy = p.y - y;
+      const ddz = p.z - z;
+      const d = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+      if (d < bestDist) { bestDist = d; targetId = id; }
+    }
+    if (bestDist > MISSILE_LOCK_RANGE) targetId = null;
+
+    let vx, vy, vz;
+    if (targetId) {
+      const t = players.get(targetId);
+      const ddx = t.x - x;
+      const ddy = t.y - y;
+      const ddz = t.z - z;
+      const len = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) || 1;
+      vx = ddx / len * MISSILE_SPEED;
+      vy = ddy / len * MISSILE_SPEED;
+      vz = ddz / len * MISSILE_SPEED;
+    } else {
+      const dx = sanitizeFloat(data.dx, -200, 200, 0);
+      const dy = sanitizeFloat(data.dy, -200, 200, 0);
+      const dz = sanitizeFloat(data.dz, -200, 200, 0);
+      const speed = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (speed < 10 || speed > 300) return;
+      const k = MISSILE_SPEED / speed;
+      vx = dx * k;
+      vy = dy * k;
+      vz = dz * k;
+    }
 
     projectiles.push({
       id: projectileId++,
       owner: socket.id,
+      targetId,
       x, y, z,
-      dx: dx * 2.5, dy: dy * 2.5, dz: dz * 2.5,
-      life: 2.5,
+      vx, vy, vz,
+      life: MISSILE_LIFE,
       color: player.color
     });
 
     socket.broadcast.emit('projectile', {
       id: projectileId - 1,
       owner: socket.id,
+      targetId,
       x, y, z,
-      dx: dx * 2.5, dy: dy * 2.5, dz: dz * 2.5,
+      vx, vy, vz,
       color: player.color
     });
   });
