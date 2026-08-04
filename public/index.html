@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transform Racer - Online Multiplayer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23131b33'/%3E%3Cpath d='M15 70 Q15 45 35 40 L45 70 Z' fill='%2333ccff'/%3E%3Cpath d='M85 70 Q85 45 65 40 L55 70 Z' fill='%2333ccff'/%3E%3Crect x='42' y='30' width='16' height='40' rx='4' fill='%23ffd84d'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/lib/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Start overlay -->
+  <div id="start-overlay">
+    <div class="start-card">
+      <h1>TRANSFORM<span>RACER</span></h1>
+      <p class="tagline">Drive &amp; drift like a bullet, then transform and rule the skies.</p>
+      <input id="name-input" type="text" maxlength="16" placeholder="Your callsign" autocomplete="off" />
+      <button id="join-btn">JOIN THE GAME</button>
+      <div id="server-status" class="connecting">Connecting to server...</div>
+      <div class="controls-grid">
+        <div><b>W/S</b> Throttle / Brake</div>
+        <div><b>A/D</b> Steer / Roll</div>
+        <div><b>SHIFT</b> Nitrous / Boost (tap 2x = 2x power)</div>
+        <div><b>SPACE</b> Drift (car)</div>
+        <div><b>Q/E</b> Yaw (plane)</div>
+        <div><b>F</b> Transform mode</div>
+        <div><b>C</b> Camera view</div>
+        <div><b>ENTER</b> Chat</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="mode-indicator"><div class="mode-label">MODE</div><div id="mode-value">CAR</div></div>
+    <div id="players-online">0 online</div>
+    <button id="sound-toggle" title="Toggle sound (M)">&#128266;</button>
+    <div id="speedometer">
+      <div id="speed-num">0</div>
+      <div id="speed-unit">km/h</div>
+    </div>
+    <div id="nitro-panel">
+      <div class="nitro-label">NITROUS / BOOST</div>
+      <div id="nitro-bar"><div id="nitro-fill"></div></div>
+    </div>
+    <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="transform-hint">Press <b>F</b> to transform</div>
+    <div id="warning" class="hidden"></div>
+
+    <div id="edge-tags"></div>
+
+    <div id="chat-box">
+      <div id="chat-log"></div>
+      <input id="chat-input" type="text" placeholder="Press Enter to chat..." autocomplete="off" maxlength="200" />
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
