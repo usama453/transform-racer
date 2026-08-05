@@ -1,21 +1,21 @@
 import * as THREE from 'three';
 
-export function buildVehicle(color) {
+export function buildVehicle(color, bright = false) {
   const root = new THREE.Group();
 
   const primary = new THREE.Color(color);
   const dark = primary.clone().multiplyScalar(0.3);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.2, metalness: 0.7 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0a0a1a, roughness: 0.3, metalness: 0.6 });
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0x003355, roughness: 0.05, metalness: 0.95, transparent: true, opacity: 0.7 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.2, metalness: 0.7, ...(bright ? { emissive: primary, emissiveIntensity: 0.3 } : {}) });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0a0a1a, roughness: 0.3, metalness: 0.6, ...(bright ? { emissive: 0x224466, emissiveIntensity: 0.15 } : {}) });
+  const glassMat = new THREE.MeshStandardMaterial({ color: bright ? 0x005577 : 0x003355, roughness: 0.05, metalness: 0.95, transparent: true, opacity: bright ? 0.75 : 0.7, ...(bright ? { emissive: 0x0066aa, emissiveIntensity: 0.7 } : {}) });
   const tireMat = new THREE.MeshStandardMaterial({ color: 0x0a0a14, roughness: 0.95 });
-  const hubMat = new THREE.MeshStandardMaterial({ color: primary, metalness: 0.9, roughness: 0.15, emissive: primary, emissiveIntensity: 0.3 });
+  const hubMat = new THREE.MeshStandardMaterial({ color: primary, metalness: 0.9, roughness: 0.15, emissive: primary, emissiveIntensity: bright ? 0.6 : 0.3 });
 
   const glowMat = new THREE.MeshStandardMaterial({
-    color: primary, emissive: primary, emissiveIntensity: 1.5
+    color: primary, emissive: primary, emissiveIntensity: bright ? 2.2 : 1.5
   });
   const glowBrightMat = new THREE.MeshBasicMaterial({
-    color: primary, transparent: true, opacity: 0.8
+    color: primary, transparent: true, opacity: bright ? 0.95 : 0.8
   });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.7, 4.2), bodyMat);

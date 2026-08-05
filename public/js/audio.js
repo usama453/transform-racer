@@ -117,14 +117,16 @@ export class SoundManager {
     const overkick = overboost ? 60 : 0;
 
     if (inCar) {
-      // piston engine: low saw + square sub
+      // piston engine: low saw + square sub + sine sub-bass
       const freq = 65 + speed * 3.4 + boostKick + overkick;
       this.osc1.frequency.setTargetAtTime(freq, t, 0.06);
       this.osc2.frequency.setTargetAtTime(freq * 0.5, t, 0.06);
-      this.osc2Gain.gain.setTargetAtTime(0.6, t, 0.06);
-      this.osc3Gain.gain.setTargetAtTime(0, t, 0.06);
+      this.osc2Gain.gain.setTargetAtTime(0.85, t, 0.06);
+      this.osc3.frequency.setTargetAtTime(freq * 0.25, t, 0.06);
+      this.osc3Gain.gain.setTargetAtTime(0.55, t, 0.06);
       this.engineFilter.type = 'lowpass';
-      this.engineFilter.frequency.setTargetAtTime(350 + speed * 8 + (nitroActive ? 400 : 0) + overkick * 3, t, 0.08);
+      this.engineFilter.frequency.setTargetAtTime(220 + speed * 6 + (nitroActive ? 320 : 0) + overkick * 2.5, t, 0.08);
+      this.engineFilter.Q.setTargetAtTime(2.5, t, 0.08);
     } else {
       // jet: high whine + rumble + open airy filter
       const whine = 300 + speed * 2.1 + boostKick + overkick * 1.4;
@@ -136,6 +138,7 @@ export class SoundManager {
       this.osc3Gain.gain.setTargetAtTime(0.22 + speed / 1200, t, 0.05);
       this.engineFilter.type = 'lowpass';
       this.engineFilter.frequency.setTargetAtTime(900 + speed * 9 + (nitroActive ? 500 : 0) + overkick * 4, t, 0.08);
+      this.engineFilter.Q.setTargetAtTime(1, t, 0.08);
     }
 
     let level = 0.12;
@@ -183,6 +186,26 @@ export class SoundManager {
     osc.stop(t + 0.4);
   }
 
+  launchSfx() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(90, t);
+    osc.frequency.exponentialRampToValueAtTime(420, t + 0.4);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(300, t);
+    lp.frequency.exponentialRampToValueAtTime(1600, t + 0.4);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    osc.connect(lp).connect(g).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.5);
+  }
+
   transform(nextMode) {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -214,6 +237,44 @@ export class SoundManager {
     clunk.stop(t + 0.25);
   }
 
+  boomSfx() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+
+    // sub thump: fast pitch drop
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(160, t);
+    sub.frequency.exponentialRampToValueAtTime(38, t + 0.45);
+    const subG = ctx.createGain();
+    subG.gain.setValueAtTime(0.9, t);
+    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    sub.connect(subG).connect(this.master);
+    sub.start(t);
+    sub.stop(t + 0.65);
+
+    // punch: lowpassed noise crack
+    const burst = ctx.createBufferSource();
+    const len = Math.floor(ctx.sampleRate * 0.35);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const e = Math.exp(-i / (ctx.sampleRate * 0.09));
+      data[i] = (Math.random() * 2 - 1) * e;
+    }
+    burst.buffer = buf;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(1200, t);
+    lp.frequency.exponentialRampToValueAtTime(200, t + 0.3);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.7, t);
+    bg.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    burst.connect(lp).connect(bg).connect(this.master);
+    burst.start(t);
+  }
+
   land() {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -228,6 +289,75 @@ export class SoundManager {
     osc.connect(g).connect(this.master);
     osc.start(t);
     osc.stop(t + 0.3);
+  }
+
+  crashSfx(intensity) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const k = Math.min(1, intensity / 80);
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(90, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t + 0.25);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(900, t);
+    lp.frequency.exponentialRampToValueAtTime(200, t + 0.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.22 * k, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(lp).connect(g).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.35);
+
+    const len = Math.floor(ctx.sampleRate * 0.2);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.045));
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.18 * k, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    noise.connect(ng).connect(this.master);
+    noise.start(t);
+    noise.stop(t + 0.3);
+  }
+
+  breakSfx() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(28, t + 0.5);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    osc.connect(g).connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.7);
+
+    const len = Math.floor(ctx.sampleRate * 0.4);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.08));
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 2500;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.25, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    noise.connect(hp).connect(ng).connect(this.master);
+    noise.start(t);
+    noise.stop(t + 0.45);
   }
 
   resume() {

@@ -3,7 +3,7 @@ import { Vehicle, PLANE_GROUND_Y, WORLD_RADIUS } from './vehicle.js';
 import { Input } from './input.js';
 import { Network } from './network.js';
 import { HUD } from './hud.js';
-import { createWorld, updateWorld } from './world.js';
+import { createWorld, updateWorld, collideCar, breakState, breakBuildingByIdx } from './world.js';
 import { buildVehicle, setVehicleMode, animateVehicle, buildMissile } from './render.js';
 import { SoundManager } from './audio.js';
 import { Minimap } from './minimap.js';
@@ -27,23 +27,92 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 4000);
 camera.position.set(10, 6, 12);
 
+// radial motion blur post-process pass
+const drawBuf = new THREE.Vector2();
+const blurRT = new THREE.WebGLRenderTarget(1, 1, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat
+});
+blurRT.samples = 4;
+const blurScene = new THREE.Scene();
+const blurCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const blurMat = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse: { value: null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+    uAmount: { value: 0 }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform vec2 resolution;
+    uniform float uAmount;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      vec2 center = vec2(0.5);
+      vec2 aspect = vec2(resolution.x / max(resolution.y, 1.0), 1.0);
+      vec2 d = (uv - center) * aspect;
+      float dist = length(d);
+      vec2 dirN = dist > 0.0001 ? d / dist : vec2(0.0);
+      vec3 color = texture2D(tDiffuse, uv).rgb;
+      float total = 1.0;
+      for (int i = 1; i <= 6; i++) {
+        float s = float(i) / 7.0;
+        vec2 off = (dirN * dist * s * uAmount) / aspect;
+        color += texture2D(tDiffuse, uv + off).rgb;
+        color += texture2D(tDiffuse, uv - off).rgb;
+        total += 2.0;
+      }
+      gl_FragColor = vec4(color / total, 1.0);
+    }
+  `,
+  depthTest: false,
+  depthWrite: false
+});
+const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat);
+blurQuad.frustumCulled = false;
+blurScene.add(blurQuad);
+
+function resizeBlurRT() {
+  renderer.getDrawingBufferSize(drawBuf);
+  blurRT.setSize(drawBuf.x, drawBuf.y);
+  blurMat.uniforms.resolution.value.set(drawBuf.x, drawBuf.y);
+}
+resizeBlurRT();
+
 const world = createWorld(scene);
+world.camera = camera;
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  resizeBlurRT();
 });
 
 const input = new Input();
 const net = new Network();
 const hud = new HUD(net);
 const vehicle = new Vehicle(0, 0);
+let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
 const soundBtn = document.getElementById('sound-toggle');
+const blurBtn = document.getElementById('motionblur-toggle');
+const shakeBtn = document.getElementById('screenshake-toggle');
+let motionBlurOn = true;
+let screenShakeOn = true;
+let shake = 0;
 
 setVehicleMode(vehicleMesh, 'car');
 
@@ -53,10 +122,12 @@ let displayedMode = 'car';
 let cameraView = 'chase';
 
 const particles = createParticles(scene);
+const debris = createDebris(scene);
 const transformFlash = createTransformFlash(scene);
 
 vehicle.onBounce = (vy) => {
   audio.land();
+  shake = Math.min(shake + 0.5, 1);
   const pos = vehicle.position;
   for (let i = 0; i < 6; i++) {
     particles.spawn(
@@ -67,19 +138,14 @@ vehicle.onBounce = (vy) => {
   }
 };
 
+vehicle.onTransformToPlane = () => sonicBoom();
+
 let myName = 'Pilot';
-let myLabel = null;
 
 function labelOpacity(dist) {
   if (dist < 140) return 1;
   if (dist >= 950) return 0.42;
   return 1 - ((dist - 140) / 810) * 0.58;
-}
-
-function ensureOwnLabel() {
-  if (myLabel) return;
-  myLabel = makeLabel(myName, '#33ccff');
-  scene.add(myLabel);
 }
 
 const remotes = new Map();
@@ -130,6 +196,7 @@ function syncRemotes(dt) {
     if (!net.players.has(id)) {
       scene.remove(rp.mesh);
       scene.remove(rp.label);
+      scene.remove(rp.trail.line);
       remotes.delete(id);
       continue;
     }
@@ -150,9 +217,10 @@ function syncRemotes(dt) {
 
     rp.mesh.position.copy(rp.curPos);
     rp.mesh.quaternion.copy(rp.curQuat);
+    rp.trail.push(rp.curPos);
 
     rp.label.position.copy(rp.curPos);
-    rp.label.position.y = rp.mode === 'plane' ? 2.6 : 2.1;
+    rp.label.position.y = rp.mode === 'plane' ? 7.0 : 5.6;
     rp.label.material.opacity = labelOpacity(rp.curPos.distanceTo(camera.position));
     sizeLabel(rp.label);
 
@@ -162,18 +230,58 @@ function syncRemotes(dt) {
   }
 }
 
+function collidePlayers() {
+  const ownIsPlane = vehicle.mode === 'plane';
+  const ownR = ownIsPlane ? 3.2 : 1.9;
+  let impact = 0;
+  for (const [id, rp] of remotes) {
+    const s = net.players.get(id);
+    if (!s || s.health <= 0) continue;
+    if (Math.abs(vehicle.position.y - rp.curPos.y) > 8) continue;
+    const otherR = rp.mode === 'plane' ? 3.2 : 1.9;
+    const dx = vehicle.position.x - rp.curPos.x;
+    const dz = vehicle.position.z - rp.curPos.z;
+    const rr = ownR + otherR;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= rr * rr || d2 < 1e-6) continue;
+
+    const d = Math.sqrt(d2);
+    const nx = dx / d;
+    const nz = dz / d;
+    const pen = rr - d;
+    vehicle.position.x += nx * pen;
+    vehicle.position.z += nz * pen;
+
+    const vn = vehicle.velocity.x * nx + vehicle.velocity.z * nz;
+    if (vn < 0) {
+      vehicle.velocity.x -= nx * vn * 0.9;
+      vehicle.velocity.z -= nz * vn * 0.9;
+      if (ownIsPlane) vehicle.speed = Math.max(0, vehicle.speed - (-vn) * 0.5);
+      impact = Math.max(impact, -vn);
+    }
+
+    // nudge the other player's visual out of the way (their server state re-asserts)
+    rp.curPos.x -= nx * pen;
+    rp.curPos.z -= nz * pen;
+    rp.targetPos.x -= nx * pen * 0.5;
+    rp.targetPos.z -= nz * pen * 0.5;
+  }
+  return impact;
+}
+
 function ensureRemotes() {
   for (const [id, s] of net.players) {
     if (id === net.myId) continue;
     if (!remotes.has(id)) {
-      const mesh = buildVehicle(s.color || '#ffffff');
+      const mesh = buildVehicle(s.color || '#ffffff', true);
       scene.add(mesh);
       const label = makeLabel(s.name || 'Pilot', s.color || '#ffffff');
       scene.add(label);
+      const trail = createTrail(scene, s.color || '#ffffff');
       const start = new THREE.Vector3(s.x, s.y, s.z);
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(s.pitch, s.yaw, s.roll, 'YXZ'));
       remotes.set(id, {
-        mesh, label,
+        mesh, label, trail,
         curPos: start.clone(), targetPos: start.clone(),
         curQuat: q.clone(),
         mode: s.mode || 'car'
@@ -236,6 +344,119 @@ function createParticles(scene) {
   };
 }
 
+function createDebris(scene) {
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x1a1a30, roughness: 0.8, metalness: 0.1 });
+  const pool = [];
+  for (let i = 0; i < 70; i++) {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.visible = false;
+    scene.add(mesh);
+    pool.push({
+      mesh,
+      vel: new THREE.Vector3(),
+      spin: new THREE.Vector3(),
+      life: 0,
+      maxLife: 1
+    });
+  }
+  let idx = 0;
+
+  return {
+    spawn(pos, w, d, h, count) {
+      for (let n = 0; n < count; n++) {
+        const p = pool[idx];
+        idx = (idx + 1) % pool.length;
+        const s = 0.6 + Math.random() * 2.2;
+        p.mesh.position.set(
+          pos.x + (Math.random() - 0.5) * w,
+          pos.y + Math.random() * h,
+          pos.z + (Math.random() - 0.5) * d
+        );
+        p.mesh.scale.setScalar(s);
+        p.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        p.vel.set((Math.random() - 0.5) * 30, 6 + Math.random() * 18, (Math.random() - 0.5) * 30);
+        p.spin.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+        p.maxLife = 1.4 + Math.random() * 0.8;
+        p.life = p.maxLife;
+        p.mesh.visible = true;
+      }
+    },
+    update(dt) {
+      for (const p of pool) {
+        if (p.life <= 0) continue;
+        p.life -= dt;
+        if (p.life <= 0) {
+          p.mesh.visible = false;
+          continue;
+        }
+        p.vel.y -= 30 * dt;
+        p.mesh.position.addScaledVector(p.vel, dt);
+        if (p.mesh.position.y < 1 && p.vel.y < 0) {
+          p.mesh.position.y = 1;
+          p.vel.y *= -0.3;
+          p.vel.x *= 0.6;
+          p.vel.z *= 0.6;
+        }
+        p.mesh.rotation.x += p.spin.x * dt;
+        p.mesh.rotation.y += p.spin.y * dt;
+        p.mesh.rotation.z += p.spin.z * dt;
+        p.mesh.scale.setScalar(Math.max(0.01, p.maxLife > 0 ? p.life / p.maxLife : 0.01));
+      }
+    }
+  };
+}
+
+function spawnBuildingDebris(b) {
+  const count = Math.min(42, Math.max(14, Math.round((b.w * b.d * b.h) / 400)));
+  debris.spawn(
+    { x: b.x, y: b.h / 2, z: b.z },
+    b.w, b.d, b.h, count
+  );
+}
+
+function createTrail(scene, colorHex) {
+  const N = 20;
+  const posArr = new Float32Array(N * 3);
+  const colArr = new Float32Array(N * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+  geo.setDrawRange(0, 0);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  }));
+  line.frustumCulled = false;
+  scene.add(line);
+  const c = new THREE.Color(colorHex);
+  const buf = [];
+  let last = null;
+  return {
+    line,
+    push(p) {
+      if (last && p.distanceTo(last) < 0.6) return;
+      last = p.clone();
+      buf.push(last);
+      if (buf.length > N) buf.shift();
+      const n = buf.length;
+      for (let i = 0; i < n; i++) {
+        posArr[i * 3] = buf[i].x;
+        posArr[i * 3 + 1] = buf[i].y;
+        posArr[i * 3 + 2] = buf[i].z;
+        const t = (i + 1) / n;
+        const fade = t * t;
+        colArr[i * 3] = c.r * fade;
+        colArr[i * 3 + 1] = c.g * fade;
+        colArr[i * 3 + 2] = c.b * fade;
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.color.needsUpdate = true;
+      geo.setDrawRange(0, n);
+    }
+  };
+}
+
 function createTransformFlash(scene) {
   const geo = new THREE.SphereGeometry(1, 16, 16);
   const mat = new THREE.MeshBasicMaterial({
@@ -245,6 +466,12 @@ function createTransformFlash(scene) {
   mesh.visible = false;
   scene.add(mesh);
   return { mesh, life: 0 };
+}
+
+function sonicBoom() {
+  audio.boomSfx();
+  shake = Math.min(shake + 1.2, 2.4);
+  transformFlash.life = 0.5;
 }
 
 const MISSILE_SPEED = 55;
@@ -344,6 +571,7 @@ net.onProjectileRemove = (data) => {
 net.onHit = (data) => {
   if (data.targetId === net.myId) {
     vehicle.health = data.health;
+    shake = Math.min(shake + 0.7, 1.2);
     if (vehicle.health <= 0) {
       vehicle.respawn();
       spawnSet = true;
@@ -384,10 +612,17 @@ net.onPlayerRespawned = (data) => {
   }
 };
 
+net.onBreak = (data) => {
+  breakBuildingByIdx(data.idx);
+};
+
 const lookTarget = new THREE.Vector3();
 const fwdTmp = new THREE.Vector3();
 
 function updateCamera(dt) {
+  shake = Math.max(0, shake - dt * 1.6);
+  const speedShake = Math.min(0.06, vehicle.speed * 0.0003);
+  const amp = (screenShakeOn ? shake : 0) + (screenShakeOn ? speedShake : 0);
   const fwd = vehicle.forward;
   const mode = vehicle.mode;
 
@@ -398,6 +633,11 @@ function updateCamera(dt) {
     camera.position.copy(vehicle.position);
     camera.position.y += upOff;
     camera.position.addScaledVector(fwd, 0.55);
+    if (amp > 0.01) {
+      camera.position.x += (Math.random() - 0.5) * amp * 0.9;
+      camera.position.y += (Math.random() - 0.5) * amp * 0.8;
+      camera.position.z += (Math.random() - 0.5) * amp * 0.9;
+    }
     const fov = 62 + Math.min(18, vehicle.speed * 0.18);
     if (Math.abs(camera.fov - fov) > 0.1) {
       camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 3));
@@ -416,6 +656,11 @@ function updateCamera(dt) {
   if (desired.y < 1.2) desired.y = 1.2;
 
   camera.position.lerp(desired, 1 - Math.exp(-dt * 5));
+  if (amp > 0.01) {
+    camera.position.x += (Math.random() - 0.5) * amp * 0.9;
+    camera.position.y += (Math.random() - 0.5) * amp * 0.8;
+    camera.position.z += (Math.random() - 0.5) * amp * 0.9;
+  }
 
   const look = vehicle.position.clone().addScaledVector(fwd, mode === 'plane' ? 14 : 9);
   look.y += mode === 'plane' ? 1.5 : 1.3;
@@ -448,6 +693,7 @@ input.onTransform = () => {
   if (!joined) return;
   vehicle.transform();
   audio.transform(vehicle.nextMode);
+  shake = Math.min(shake + 0.3, 1);
   net.sendTransform(vehicle.nextMode);
 };
 
@@ -522,7 +768,32 @@ input.onShoot = () => {
   }
 };
 
-soundBtn.addEventListener('click', () => input.onMute());
+soundBtn.addEventListener('click', () => {
+  input.onMute();
+  soundBtn.blur();
+});
+
+function setMotionBlur(on) {
+  motionBlurOn = on;
+  blurBtn.classList.toggle('on', on);
+}
+
+function setScreenShake(on) {
+  screenShakeOn = on;
+  shakeBtn.classList.toggle('on', on);
+  if (!on) shake = 0;
+}
+
+blurBtn.addEventListener('click', () => {
+  setMotionBlur(!motionBlurOn);
+  blurBtn.blur();
+});
+shakeBtn.addEventListener('click', () => {
+  setScreenShake(!screenShakeOn);
+  shakeBtn.blur();
+});
+input.onMotionBlur = () => setMotionBlur(!motionBlurOn);
+input.onScreenShake = () => setScreenShake(!screenShakeOn);
 
 function updateOwnVisual(dt) {
   vehicleMesh.position.copy(vehicle.position);
@@ -583,13 +854,6 @@ function updateOwnVisual(dt) {
       ));
       particles.spawn(pos, vel, 0.9, 0.5);
     }
-  }
-
-  if (myLabel) {
-    myLabel.position.copy(vehicle.position);
-    myLabel.position.y = vehicle.position.y + (displayedMode === 'plane' ? 2.6 : 2.1);
-    myLabel.material.opacity = cameraView === 'cockpit' ? 0 : 0.9;
-    sizeLabel(myLabel);
   }
 }
 
@@ -665,7 +929,7 @@ function joinGame() {
   myName = NAME_INPUT.value.trim() || 'Pilot';
   net.sendName(myName);
   audio.init();
-  ensureOwnLabel();
+  hud.setPlayerName(myName);
   OVERLAY.classList.add('hidden');
   hud.closeChat();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -723,7 +987,53 @@ function animate() {
   }
 
   const ctrl = readInput();
+
+  // jump ramps: launch the car when it drives fast up a ramp
+  if (vehicle.mode === 'car' && !vehicle.transforming && !vehicle.carFalling && world.ramps) {
+    for (const ramp of world.ramps) {
+      const dx = vehicle.position.x - ramp.x;
+      const dz = vehicle.position.z - ramp.z;
+      if (dx * dx + dz * dz < ramp.radius * ramp.radius) {
+        const speed = Math.hypot(vehicle.velocity.x, vehicle.velocity.z);
+        if (speed > 18) {
+          rampJumpCount++;
+          vehicle.carFalling = true;
+          // every 3rd ramp jump gets the full boost launch
+          if (rampJumpCount % 3 === 0) {
+            const fwd = vehicle.forward;
+            vehicle.velocity.addScaledVector(fwd, 50);
+            vehicle.velocity.y = 26;
+            if (audio.launchSfx) audio.launchSfx();
+          } else {
+            vehicle.velocity.y = 13;
+          }
+          break;
+        }
+      }
+    }
+  }
+
   vehicle.update(ctrl, dt);
+
+  const impact = collideCar(vehicle);
+  if (impact > 20) {
+    shake = Math.min(shake + Math.min(0.5, impact / 120), 2.4);
+    audio.crashSfx(impact);
+  }
+  if (breakState.building) {
+    const b = breakState.building;
+    spawnBuildingDebris(b);
+    audio.breakSfx();
+    shake = Math.min(shake + 0.8, 2.4);
+    net.sendBreak(b.idx);
+    breakState.building = null;
+  }
+
+  const vImpact = collidePlayers();
+  if (vImpact > 15) {
+    shake = Math.min(shake + Math.min(0.4, vImpact / 150), 2.4);
+    audio.crashSfx(vImpact);
+  }
 
   ensureRemotes();
   syncRemotes(dt);
@@ -732,6 +1042,7 @@ function animate() {
   updateOwnVisual(dt);
   updateCamera(dt);
   particles.update(dt);
+  debris.update(dt);
   updateProjectiles(dt);
   updateWorld(world, dt);
 
@@ -763,7 +1074,20 @@ function animate() {
 
   net.sendUpdate(vehicle);
 
-  renderer.render(scene, camera);
+  const blurBase = Math.max(0, (vehicle.speed - 1000) / 1500);
+  const blurScale = vehicle.mode === 'plane' ? 1.3 : 0.7;
+  const blurAmt = Math.min(0.03, Math.max(0, blurBase * blurScale));
+
+  if (motionBlurOn && blurAmt > 0.01) {
+    renderer.setRenderTarget(blurRT);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    blurMat.uniforms.tDiffuse.value = blurRT.texture;
+    blurMat.uniforms.uAmount.value = blurAmt;
+    renderer.render(blurScene, blurCamera);
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 setInterval(() => {

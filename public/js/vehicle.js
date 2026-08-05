@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export const GROUND_Y = 0;
 export const CAR_BODY_Y = 1.0;
 export const PLANE_GROUND_Y = CAR_BODY_Y + 0.4;
-export const WORLD_RADIUS = 3000;
+export const WORLD_RADIUS = 9000;
 
 const CAR_ENGINE = 32;
 const CAR_REVERSE_FORCE = 13;
@@ -23,16 +23,20 @@ const CAR_GRIP = 5.5;
 const CAR_DRIFT_GRIP = 0.5;
 const CAR_BANK_MAX = 0.55;
 const CAR_BRAKE_DECEL = 34;
+const CAR_HANDBRAKE_DECEL = 16;
+const CAR_TURN_DRAG = 0.12;
 const CAR_DIVE_PITCH = -0.35;
 const CAR_BOUNCE_REST = 0.18;
 
 const OVERBOOST_DURATION = 2.5;
 
-const PLANE_BASE_SPEED = 95;
-const PLANE_BOOST_SPEED = 110;
-const PLANE_OVERBOOST_SPEED = 165;
+const PLANE_BASE_SPEED = 180;
+const PLANE_BOOST_SPEED = 230;
+const PLANE_OVERBOOST_SPEED = 290;
+const PLANE_ACCEL = 30;
+const PLANE_BRAKE_DECEL = 60;
 const PLANE_VY_RATE = 8;
-const PLANE_SPEED_RATE = 0.7;
+const PLANE_SPEED_RATE = 1.6;
 const PLANE_GRAVITY = 42;
 const PLANE_BOUNCE_MIN = 6.5;
 const PLANE_BOUNCE_REST = 0.32;
@@ -42,6 +46,7 @@ const PLANE_ROLL_MAX = 1.1;
 const PLANE_ROLL_RESPONSE = 5.0;
 const PLANE_BANK_TURN = 1.2;
 const PLANE_YAW_INPUT_RATE = 1.0;
+const PLANE_TURN_DRAG = 0.1;
 const PLANE_MAX_PITCH = 1.2;
 const TAKEOFF_SPEED = 40;
 
@@ -124,11 +129,14 @@ export class Vehicle {
         if (this.mode === 'car') {
           this.applyCarInertia();
         } else {
-          // car→plane: keep the car's horizontal speed
+          // car→plane: carry the car's speed over, but the plane is faster,
+          // so it never drops below a fast floor and immediately accelerates
+          // up to its (higher) top speed
           if (prevMode === 'car') {
-            this.speed = Math.hypot(this.velocity.x, this.velocity.z);
-            this.speedPreserveTimer = 1.5;
+            this.speed = Math.hypot(this.velocity.x, this.velocity.z) + 80;
+            this.speedPreserveTimer = 0.3;
           }
+          if (this.onTransformToPlane) this.onTransformToPlane();
         }
       }
     }
@@ -158,7 +166,6 @@ export class Vehicle {
 
   updateCar(input, dt) {
     const fwd = this.forward;
-    const right = this._right.set(1, 0, 0).applyQuaternion(this._q);
 
     const throttle = input.throttle;
     let force = 0;
@@ -172,20 +179,10 @@ export class Vehicle {
     }
 
     const fwdSpeed = this.velocity.dot(fwd);
-    const rightSpeed = this.velocity.dot(right);
 
-    const drifting = input.handbrake && Math.abs(fwdSpeed) > 8;
+    const drifting = input.handbrake && Math.abs(fwdSpeed) > 3;
     this.drifting = drifting;
     const braking = throttle < 0 && fwdSpeed > 0.5;
-
-    // soft top speed: fade engine power out above the nominal max instead of
-    // hard-capping, so the car keeps creeping slowly faster
-    const maxSpeed = this.overboost
-      ? CAR_MAX_OVERBOOST_SPEED
-      : (this.usingNitro ? CAR_MAX_NITRO_SPEED : CAR_MAX_SPEED);
-    if (force > 0 && fwdSpeed > maxSpeed * CAR_SOFT_FADE) {
-      force = this._softTop(force, fwdSpeed, maxSpeed);
-    }
 
     // steering
     const steerInput = input.steer;
@@ -194,23 +191,48 @@ export class Vehicle {
     const turnRate = (drifting ? CAR_DRIFT_TURN : CAR_TURN) * steerFactor * steerInput * dir;
     this.yaw -= turnRate * dt;
 
-    // forces along local axes
-    let fwdForce = force;
-    if (braking) fwdForce -= Math.abs(throttle) * CAR_BRAKE_DECEL * Math.sign(fwdSpeed);
-    if (!this.usingNitro) {
-      fwdForce -= fwdSpeed * (CAR_DRAG + CAR_ROLLING);
-    }
-
     if (this.carFalling) {
       // airborne: no grip/rolling damp, just light air drag on the horizontal
       this.velocity.x *= 1 - CAR_DRAG * dt;
       this.velocity.z *= 1 - CAR_DRAG * dt;
     } else {
-      const grip = drifting ? CAR_DRIFT_GRIP : CAR_GRIP;
-      const latForce = -rightSpeed * grip;
-      this.velocity.x += (fwd.x * fwdForce + right.x * latForce) * dt;
-      this.velocity.z += (fwd.z * fwdForce + right.z * latForce) * dt;
+      // steer by rotating the velocity toward the car's facing direction.
+      // rotation preserves magnitude, so turning never slows the car down.
+      const gripK = drifting ? CAR_DRIFT_GRIP : CAR_GRIP;
+      const speed = Math.hypot(this.velocity.x, this.velocity.z);
+      if (speed > 0.05) {
+        let diff = Math.atan2(fwd.x, fwd.z) - Math.atan2(this.velocity.x, this.velocity.z);
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const newAngle = Math.atan2(this.velocity.x, this.velocity.z) + diff * (1 - Math.exp(-gripK * dt));
+        this.velocity.x = Math.sin(newAngle) * speed;
+        this.velocity.z = Math.cos(newAngle) * speed;
+      }
     }
+
+    // longitudinal force along the (now aligned) facing direction:
+    // engine / brake / drag, so acceleration is unaffected by steering
+    const curSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+    const maxSpeed = this.overboost
+      ? CAR_MAX_OVERBOOST_SPEED
+      : (this.usingNitro ? CAR_MAX_NITRO_SPEED : CAR_MAX_SPEED);
+    if (force > 0 && curSpeed > maxSpeed * CAR_SOFT_FADE) {
+      force = this._softTop(force, curSpeed, maxSpeed);
+    }
+
+    let fwdForce = force;
+    if (braking) {
+      fwdForce -= Math.abs(throttle) * CAR_BRAKE_DECEL * Math.sign(fwdSpeed);
+    } else if (input.handbrake) {
+      // handbrake: scrub speed along the facing but leave enough to keep sliding
+      fwdForce -= Math.min(curSpeed, CAR_HANDBRAKE_DECEL) * Math.sign(fwdSpeed);
+    }
+    if (!this.usingNitro) {
+      fwdForce -= curSpeed * (CAR_DRAG + CAR_ROLLING);
+    }
+    fwdForce -= curSpeed * Math.abs(steerInput) * CAR_TURN_DRAG;
+    this.velocity.x += fwd.x * fwdForce * dt;
+    this.velocity.z += fwd.z * fwdForce * dt;
 
     if (this.carFalling) {
       // accelerating free-fall from a transform (gravity builds downward speed)
@@ -254,6 +276,7 @@ export class Vehicle {
     this.drifting = false;
 
     const rawThrottle = input.throttle;
+    const braking = input.handbrake;
     let pitchInput = rawThrottle;
     const rollInput = input.steer;
     const yawInput = input.yaw;
@@ -272,7 +295,7 @@ export class Vehicle {
 
     // on the ground: the plane auto-accelerates down the runway (brake to hold)
     if (grounded) {
-      const spoolTarget = rawThrottle < 0 ? 15 : PLANE_BOOST_SPEED;
+      const spoolTarget = braking ? 15 : PLANE_BOOST_SPEED;
       targetSpeed = Math.min(targetSpeed, spoolTarget);
       if (this.speed < 20) {
         this.pitch = this._lerpAngle(this.pitch, 0, 1 - Math.exp(-dt * 2.5));
@@ -290,8 +313,17 @@ export class Vehicle {
 
     if (this.speedPreserveTimer > 0) {
       this.speedPreserveTimer -= dt;
-    } else {
+    } else if (grounded) {
+      // runway spool: accelerate up to takeoff speed, brake below
       this.speed = this._lerp(this.speed, targetSpeed, 1 - Math.exp(-dt * PLANE_SPEED_RATE));
+    } else if (braking) {
+      // airborne brake: decelerate, but never below zero
+      this.speed = Math.max(0, this.speed - PLANE_BRAKE_DECEL * dt);
+    } else {
+      // airborne: no speed cap — keeps accelerating every frame
+      this.speed += PLANE_ACCEL * dt;
+      // slight speed bleed from turning
+      this.speed = Math.max(0, this.speed - this.speed * (Math.abs(rollInput) + Math.abs(yawInput)) * PLANE_TURN_DRAG * dt);
     }
 
     const fwd = this.forward;
@@ -337,7 +369,7 @@ export class Vehicle {
 
   respawn() {
     const angle = Math.random() * Math.PI * 2;
-    const radius = 60 + Math.random() * 220;
+    const radius = 80 + Math.random() * 160;
     this.position.set(Math.cos(angle) * radius, CAR_BODY_Y, Math.sin(angle) * radius);
     this.velocity.set(0, 0, 0);
     this.yaw = Math.atan2(-Math.sin(angle), -Math.cos(angle));

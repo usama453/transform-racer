@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/lib', express.static(path.join(__dirname, 'node_modules/three/build')));
 app.use('/libsio', express.static(path.join(__dirname, 'node_modules/socket.io/client-dist')));
 
-const WORLD_RADIUS = 3000;
+const WORLD_RADIUS = 9000;
 
 const MISSILE_SPEED = 55;
 const MISSILE_TURN = 2.6;
@@ -34,7 +34,7 @@ let projectileId = 0;
 
 function spawnPoint() {
   const angle = Math.random() * Math.PI * 2;
-  const radius = 60 + Math.random() * 220;
+  const radius = 80 + Math.random() * 160;
   return {
     x: Math.cos(angle) * radius,
     y: 1,
@@ -290,6 +290,12 @@ io.on('connection', (socket) => {
     const clean = String(msg || '').slice(0, 200).trim();
     if (!clean) return;
     io.emit('chat', { id: socket.id, name: player.name, text: clean });
+  });
+
+  socket.on('break', (data) => {
+    const idx = Number(data && data.idx);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 30000) return;
+    socket.broadcast.emit('break', { idx });
   });
 
   socket.on('disconnect', () => {

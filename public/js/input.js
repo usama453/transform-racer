@@ -52,6 +52,12 @@ export class Input {
       if (k === 'm') {
         if (this.onMute) this.onMute();
       }
+      if (k === 'b') {
+        if (this.onMotionBlur) this.onMotionBlur();
+      }
+      if (k === 'n') {
+        if (this.onScreenShake) this.onScreenShake();
+      }
       if (k === 'g' && this.joined) {
         if (this.onShoot) this.onShoot();
       }

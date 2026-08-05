@@ -1,12 +1,10 @@
-import { WORLD_RADIUS } from './vehicle.js';
-
 export class Minimap {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.size = canvas.width;
     this.mapR = this.size / 2 - 6;
-    this.scale = this.mapR / WORLD_RADIUS;
+    this.scale = this.mapR / 3500;
     this.lastPlayers = '';
   }
 

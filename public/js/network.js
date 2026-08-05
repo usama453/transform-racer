@@ -12,6 +12,7 @@ export class Network {
     this.onProjectile = null;
     this.onProjectileRemove = null;
     this.onPlayerRespawned = null;
+    this.onBreak = null;
     this.lastSent = 0;
     this.sendInterval = 50;
   }
@@ -99,6 +100,10 @@ export class Network {
       }
       if (this.onPlayerRespawned) this.onPlayerRespawned(data);
     });
+
+    this.socket.on('break', (data) => {
+      if (this.onBreak) this.onBreak(data);
+    });
   }
 
   sendUpdate(state) {
@@ -126,5 +131,9 @@ export class Network {
 
   sendChat(text) {
     this.socket.emit('chat', text);
+  }
+
+  sendBreak(idx) {
+    this.socket.emit('break', { idx });
   }
 }

@@ -13,6 +13,7 @@ export class HUD {
     this.chatInput = $('chat-input');
     this.statusEl = $('server-status');
     this.nameInput = $('name-input');
+    this.playerNameEl = $('player-name');
     this.healthBar = $('health-fill');
     this.shootIndicator = $('shoot-indicator');
     this.killFeedEl = $('kill-feed');
@@ -56,6 +57,10 @@ export class HUD {
     if (count === this.lastCount) return;
     this.lastCount = count;
     this.onlineEl.textContent = `${count} online`;
+  }
+
+  setPlayerName(name) {
+    if (this.playerNameEl) this.playerNameEl.textContent = name;
   }
 
   update(v) {
