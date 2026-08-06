@@ -251,7 +251,7 @@ function createJetNPC(index) {
     scene.add(jet.mesh);
     
     // Add trail
-    jet.trail = createTrail(scene, 0xff4444, 160);
+    jet.trail = createTrail(scene, 0xff4444, 120);
   }
 
   return jet;
