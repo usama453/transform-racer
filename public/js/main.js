@@ -1073,7 +1073,7 @@ net.onConnected = () => {
   hud.setConnected();
 };
 net.onDisconnected = () => hud.setError('Connection lost - refresh to reconnect');
-net.connect();
+console.log('ABOUT TO CONNECT'); net.connect(); console.log('CONNECT CALLED, socket=' + (net.socket ? 'exists' : 'null'));
 window.__log('12. connect() returned');
 setTimeout(() => {
   
