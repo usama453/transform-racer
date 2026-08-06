@@ -251,9 +251,11 @@ export class Vehicle {
         this.carFalling = false;
       }
     } else {
-      // car stays glued to the ground
+      // car stays glued to the ground (or platform)
       this.velocity.y = 0;
-      this.position.y = CAR_BODY_Y;
+      if (!checkPlatformLanding(this)) {
+        this.position.y = CAR_BODY_Y;
+      }
     }
 
     this.position.x += this.velocity.x * dt;
@@ -437,4 +439,36 @@ export class Vehicle {
     while (diff < -Math.PI) diff += Math.PI * 2;
     return a + diff * t;
   }
+}
+
+// Tower platform for landing
+const TOWER_PLATFORM = {
+  x: 285,
+  z: 45,
+  y: 1728, // Top of deck
+  radius: 120 // White disk radius
+};
+
+export function checkPlatformLanding(vehicle) {
+  const px = vehicle.position.x;
+  const pz = vehicle.position.z;
+  const py = vehicle.position.y;
+  
+  // Check if within platform radius
+  const dx = px - TOWER_PLATFORM.x;
+  const dz = pz - TOWER_PLATFORM.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  
+  if (dist < TOWER_PLATFORM.radius) {
+    const platformTop = TOWER_PLATFORM.y;
+    
+    if (py <= platformTop && vehicle.velocity.y <= 0) {
+      // Land on platform
+      vehicle.position.y = platformTop;
+      vehicle.velocity.y = 0;
+      return true;
+    }
+  }
+  
+  return false;
 }

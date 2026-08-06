@@ -251,7 +251,7 @@ function createJetNPC(index) {
     scene.add(jet.mesh);
     
     // Add trail
-    jet.trail = createTrail(scene, 0xff4444, 120);
+    jet.trail = createTrail(scene, 0xff4444, 60);
   }
 
   return jet;
@@ -614,7 +614,7 @@ function ensureRemotes() {
       scene.add(mesh);
       const label = makeLabel(s.name || 'Pilot', s.color || '#ffffff');
       scene.add(label);
-      const trail = createTrail(scene, s.color || '#ffffff');
+      const trail = createTrail(scene, s.color || '#ffffff', 60);
       const start = new THREE.Vector3(s.x, s.y, s.z);
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(s.pitch, s.yaw, s.roll, 'YXZ'));
       remotes.set(id, {
