@@ -7,8 +7,20 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@playwright/test": "^1.62.1",
     "express": "^4.19.2",
     "socket.io": "^4.7.5",
     "three": "^0.160.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usama453/transform-racer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/usama453/transform-racer/issues"
+  },
+  "homepage": "https://github.com/usama453/transform-racer#readme"
 }

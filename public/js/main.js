@@ -8,11 +8,11 @@ import { buildVehicle, setVehicleMode, animateVehicle, buildMissile } from './re
 import { SoundManager } from './audio.js';
 import { Minimap } from './minimap.js';
 
-window.__log('1. imports done');
+
 const OVERLAY = document.getElementById('start-overlay');
 const JOIN_BTN = document.getElementById('join-btn');
 const NAME_INPUT = document.getElementById('name-input');
-window.__log('2. DOM elements got');
+
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -99,21 +99,21 @@ const net = new Network();
 const hud = new HUD(net);
 const vehicle = new Vehicle(0, 0);
 let rampJumpCount = 0;
-window.__log('6. input/net/hud/vehicle created');
+
 
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
-window.__log('7. vehicleMesh built');
+
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
 const soundBtn = document.getElementById('sound-toggle');
 const shakeBtn = document.getElementById('screenshake-toggle');
 let screenShakeOn = true;
 let shake = 0;
-window.__log('8. minimap/audio done');
+
 
 setVehicleMode(vehicleMesh, 'car');
-window.__log('9. vehicle mode set');
+
 
 let joined = false;
 let spawnSet = false;
@@ -1030,16 +1030,14 @@ chatInputEl.addEventListener('keydown', (e) => {
 
 input.onChatOpen = () => hud.openChat();
 
-window.__log('10. about to connect');
+
 net.onConnected = () => {
-  window.__log('11. CONNECTED!');
+  
   hud.setConnected();
 };
 net.onDisconnected = () => hud.setError('Connection lost - refresh to reconnect');
 net.connect();
-window.__log('12. connect() returned');
 setTimeout(() => {
-  window.__log('13. timeout check: net.connected=' + net.connected);
   if (!net.connected) hud.setError('Cannot reach server. Run "npm start" first.');
 }, 6000);
 
