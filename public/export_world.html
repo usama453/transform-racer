@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Export World as GLB</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; }
+    button { background: #00ccff; border: none; padding: 15px 30px; cursor: pointer; font-size: 16px; margin: 10px 0; }
+    button:hover { background: #0099cc; }
+    #log { margin-top: 20px; background: #000; padding: 10px; white-space: pre-wrap; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Export World as GLB</h1>
+  <button onclick="exportWorld()">Export World to GLB</button>
+  <div id="log">Click button to export...</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+    import { createWorld } from './js/world.js';
+
+    window.exportWorld = async function() {
+      const log = document.getElementById('log');
+      log.textContent = 'Creating world...';
+      
+      try {
+        // Create scene with world
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000203);
+        const world = createWorld(scene);
+        
+        log.textContent += '\nWorld created. Exporting...';
+        
+        // Export to GLB
+        const exporter = new GLTFExporter();
+        exporter.parse(
+          scene,
+          (result) => {
+            // Save as GLB binary file
+            const blob = new Blob([result], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'world_export.glb';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            log.textContent += '\nExported successfully! Saved as world_export.glb';
+            log.textContent += '\nYou can edit this file in Blender and save it back.';
+          },
+          (error) => {
+            log.textContent += '\nExport error: ' + error.message;
+          },
+          { binary: true }
+        );
+      } catch (e) {
+        log.textContent += '\nError: ' + e.message;
+        log.textContent += '\n' + e.stack;
+      }
+    };
+  </script>
+</body>
+</html>
