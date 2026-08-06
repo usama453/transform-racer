@@ -651,7 +651,22 @@ function buildMegaTower(scene) {
   deck.castShadow = true;
   g.add(deck);
 
-  // Keep only deck and center orb (removed rings and circles)
+  // Ring and circles (no pillars)
+  const underRing = new THREE.Mesh(new THREE.TorusGeometry(PR * 0.9, 1.6, 8, 60), cyanMat);
+  underRing.rotation.x = Math.PI / 2;
+  underRing.position.y = SH + 0.9;
+  g.add(underRing);
+
+  for (const r of [30, 60, 90, 116]) {
+    const circle = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+      color: r === 90 ? 0x22ff88 : 0x00e5ff,
+      transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    circle.rotation.x = Math.PI / 2;
+    circle.scale.set(r, r, 1);
+    circle.position.y = DECK + 0.2;
+    g.add(circle);
+  }
 
   const spin = new THREE.Group();
   spin.position.y = DECK;
