@@ -129,10 +129,12 @@ gltfLoader.load('/bike.glb', (gltf) => {
   // Use material that responds to light but keep colors
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {
-      let origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
-      // If color is too dark, use a default bright color
-      if (origColor < 0x222222) origColor = 0x4488ff;
       const origMap = child.material.map || null;
+      // Use white color so textures show correctly, or preserve original if no texture
+      let origColor = 0xffffff;
+      if (!origMap && child.material.color) {
+        origColor = child.material.color.getHex();
+      }
       child.material = new THREE.MeshStandardMaterial({ 
         color: origColor,
         map: origMap,
@@ -166,10 +168,12 @@ gltfLoader.load('/jet.glb', (gltf) => {
   // Use material that responds to light but keep colors
   jetModel.traverse((child) => {
     if (child.isMesh && child.material) {
-      let origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
-      // If color is too dark, use a default bright color
-      if (origColor < 0x222222) origColor = 0xcccccc;
       const origMap = child.material.map || null;
+      // Use white color so textures show correctly, or preserve original if no texture
+      let origColor = 0xffffff;
+      if (!origMap && child.material.color) {
+        origColor = child.material.color.getHex();
+      }
       child.material = new THREE.MeshStandardMaterial({ 
         color: origColor,
         map: origMap,
