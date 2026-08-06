@@ -239,26 +239,36 @@ export class Vehicle {
       this.position.y = TOWER_PLATFORM.y;
       this.velocity.y = 0;
       this.carFalling = false;
-    } else if (this.carFalling) {
-      // accelerating free-fall from a transform (gravity builds downward speed)
-      this.velocity.y -= PLANE_GRAVITY * dt;
-      this.position.y += this.velocity.y * dt;
-      if (this.position.y <= CAR_BODY_Y) {
-        this.position.y = CAR_BODY_Y;
-        if (this.velocity.y < -PLANE_BOUNCE_MIN) {
-          this.velocity.y = -this.velocity.y * CAR_BOUNCE_REST;
-          this.velocity.x *= PLANE_BOUNCE_DAMP;
-          this.velocity.z *= PLANE_BOUNCE_DAMP;
-        } else {
-          this.velocity.y = 0;
-        }
-        if (this.onBounce) this.onBounce(this.velocity.y);
-        this.carFalling = false;
-      }
+      this.onPlatform = true;
     } else {
-      // car stays glued to the ground
-      this.velocity.y = 0;
-      this.position.y = CAR_BODY_Y;
+      // If we were on platform but now off the edge, start falling
+      if (this.onPlatform) {
+        this.onPlatform = false;
+        this.carFalling = true;
+      }
+      
+      if (this.carFalling) {
+        // accelerating free-fall from a transform (gravity builds downward speed)
+        this.velocity.y -= PLANE_GRAVITY * dt;
+        this.position.y += this.velocity.y * dt;
+        if (this.position.y <= CAR_BODY_Y) {
+          this.position.y = CAR_BODY_Y;
+          if (this.velocity.y < -PLANE_BOUNCE_MIN) {
+            this.velocity.y = -this.velocity.y * CAR_BOUNCE_REST;
+            this.velocity.x *= PLANE_BOUNCE_DAMP;
+            this.velocity.z *= PLANE_BOUNCE_DAMP;
+          } else {
+            this.velocity.y = 0;
+          }
+          if (this.onBounce) this.onBounce(this.velocity.y);
+    this.carFalling = false;
+    this.onPlatform = false;
+        }
+      } else {
+        // car stays glued to the ground
+        this.velocity.y = 0;
+        this.position.y = CAR_BODY_Y;
+      }
     }
 
     this.position.x += this.velocity.x * dt;
