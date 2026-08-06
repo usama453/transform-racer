@@ -105,6 +105,14 @@ let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 
+// Add custom directional light for vehicle only (doesn't affect world)
+const vehicleLight = new THREE.DirectionalLight(0xffffff, 2);
+vehicleLight.position.set(2, 5, 3);
+vehicleMesh.add(vehicleLight);
+
+// Add ambient fill for vehicle
+vehicleMesh.add(new THREE.AmbientLight(0x444444, 0.5));
+
 // Load GLB models for bike (car mode) and jet (plane mode)
 let bikeModel = null;
 let jetModel = null;
@@ -126,14 +134,16 @@ gltfLoader.load('/bike.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
   bikeModel.position.y = 1.5; // Move up so it sits on ground
-  // Make materials flat/unlit but keep colors
+  // Use material that responds to light but keep colors
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {
       const origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
       const origMap = child.material.map || null;
-      child.material = new THREE.MeshBasicMaterial({ 
+      child.material = new THREE.MeshStandardMaterial({ 
         color: origColor,
-        map: origMap
+        map: origMap,
+        roughness: 0.7,
+        metalness: 0.1
       });
     }
   });
@@ -156,16 +166,19 @@ gltfLoader.load('/jet.glb', (gltf) => {
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   jetModel.scale.setScalar(16 / maxDim);
+  jetModel.rotation.x = Math.PI; // Flip upside down
   jetModel.rotation.z = Math.PI; // Rotate 180 degrees on Z axis
   jetModel.position.y = 3; // Move up for plane height
-  // Make materials flat/unlit but keep colors
+  // Use material that responds to light but keep colors
   jetModel.traverse((child) => {
     if (child.isMesh && child.material) {
       const origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
       const origMap = child.material.map || null;
-      child.material = new THREE.MeshBasicMaterial({ 
+      child.material = new THREE.MeshStandardMaterial({ 
         color: origColor,
-        map: origMap
+        map: origMap,
+        roughness: 0.7,
+        metalness: 0.1
       });
     }
   });
