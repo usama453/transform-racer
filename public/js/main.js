@@ -130,6 +130,7 @@ gltfLoader.load('/bike.glb', (gltf) => {
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
+  bikeModel.position.y = 1.5; // Move up so it sits on ground
   vehicleMesh.add(bikeModel);
   console.log('Bike loaded');
 });
@@ -150,6 +151,7 @@ gltfLoader.load('/jet.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   jetModel.scale.setScalar(16 / maxDim);
   jetModel.rotation.z = Math.PI; // Rotate 180 degrees to face forward
+  jetModel.position.y = 3; // Move up for plane height
   jetModel.visible = false; // Hidden by default (start in car mode)
   vehicleMesh.add(jetModel);
   console.log('Jet loaded');
