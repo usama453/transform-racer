@@ -234,11 +234,21 @@ export class Vehicle {
     this.velocity.x += fwd.x * fwdForce * dt;
     this.velocity.z += fwd.z * fwdForce * dt;
 
+    // Check platform landing first
+    const onPlatform = checkPlatformLanding(this);
+
     if (this.carFalling) {
       // accelerating free-fall from a transform (gravity builds downward speed)
       this.velocity.y -= PLANE_GRAVITY * dt;
       this.position.y += this.velocity.y * dt;
-      if (this.position.y <= CAR_BODY_Y) {
+      
+      // Land on platform if above it
+      if (onPlatform && this.position.y <= TOWER_PLATFORM.y) {
+        this.position.y = TOWER_PLATFORM.y;
+        this.velocity.y = 0;
+        this.carFalling = false;
+        if (this.onBounce) this.onBounce(this.velocity.y);
+      } else if (this.position.y <= CAR_BODY_Y) {
         this.position.y = CAR_BODY_Y;
         if (this.velocity.y < -PLANE_BOUNCE_MIN) {
           this.velocity.y = -this.velocity.y * CAR_BOUNCE_REST;
@@ -253,7 +263,9 @@ export class Vehicle {
     } else {
       // car stays glued to the ground (or platform)
       this.velocity.y = 0;
-      if (!checkPlatformLanding(this)) {
+      if (onPlatform) {
+        this.position.y = TOWER_PLATFORM.y;
+      } else {
         this.position.y = CAR_BODY_Y;
       }
     }
@@ -345,6 +357,10 @@ export class Vehicle {
 
     // Check platform landing (tower top)
     const onPlatform = checkPlatformLanding(this);
+    if (onPlatform && this.velocity.y <= 0) {
+      this.position.y = TOWER_PLATFORM.y;
+      this.velocity.y = 0;
+    }
 
     if (this.position.y < PLANE_GROUND_Y && !onPlatform) {
       this.position.y = PLANE_GROUND_Y;
