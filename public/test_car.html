@@ -62,23 +62,36 @@
       (gltf) => {
         const car = gltf.scene;
         
-        // Center and scale
+        // Center the model at origin first
         const box = new THREE.Box3().setFromObject(car);
         const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
         
-        car.position.sub(center);
-        car.position.y += size.y / 2;
+        // Move model so its center is at world origin
+        car.position.x -= center.x;
+        car.position.y -= center.y;
+        car.position.z -= center.z;
+        
+        // Recalculate bounding box after centering
+        const newBox = new THREE.Box3().setFromObject(car);
+        const size = newBox.getSize(new THREE.Vector3());
         
         // Scale to fit - make it about 3 units long
         const maxDim = Math.max(size.x, size.y, size.z);
         const scale = 3 / maxDim;
         car.scale.setScalar(scale);
         
+        // Add bounding box helper to visualize
+        const bboxHelper = new THREE.BoxHelper(car, 0xffff00);
+        scene.add(bboxHelper);
+        
+        // Add axes helper
+        const axes = new THREE.AxesHelper(2);
+        scene.add(axes);
+        
         // Log for debugging
-        console.log('Original size:', size.x, size.y, size.z);
-        console.log('Scale factor:', scale);
-        console.log('Position:', car.position.x, car.position.y, car.position.z);
+        console.log('Center:', center.x, center.y, center.z);
+        console.log('Size:', size.x.toFixed(1), size.y.toFixed(1), size.z.toFixed(1));
+        console.log('Scale:', scale.toFixed(4));
         
         scene.add(car);
         
