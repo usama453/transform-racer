@@ -671,34 +671,10 @@ function buildMegaTower(scene) {
   spin.position.y = DECK;
   g.add(spin);
 
-  const hex = new THREE.Mesh(new THREE.TorusGeometry(74, 1.3, 8, 6), greenMat);
-  hex.rotation.x = Math.PI / 2;
-  spin.add(hex);
-
-  const spinRing = new THREE.Mesh(ringGeo, purpleMat);
-  spinRing.rotation.x = Math.PI / 2;
-  spinRing.scale.set(88, 88, 1);
-  spin.add(spinRing);
-
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const spoke = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
-      color: 0x22ff88, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false
-    }));
-    spoke.rotation.x = Math.PI / 2;
-    spoke.rotation.z = a;
-    spoke.scale.set(56, 1, 1);
-    spin.add(spoke);
-  }
-
-  const core = new THREE.Mesh(new THREE.SphereGeometry(10, 20, 16), cyanMat);
+  // Center orb only (removed pillars, rings, spokes)
+  const core = new THREE.Mesh(new THREE.SphereGeometry(15, 20, 16), cyanMat);
   core.position.y = 9;
   spin.add(core);
-
-  const coreRing = new THREE.Mesh(new THREE.TorusGeometry(17, 1, 8, 32), greenMat);
-  coreRing.rotation.x = Math.PI / 2.7;
-  coreRing.position.y = 9;
-  spin.add(coreRing);
 
   const glow = new THREE.PointLight(0x00ccff, 600, 260);
   glow.position.y = 14;
