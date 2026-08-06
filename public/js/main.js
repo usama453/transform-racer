@@ -228,24 +228,30 @@ function createJetNPC(index) {
     target: null,
     patrolAngle: (index / JET_COUNT) * Math.PI * 2,
     respawnTimer: 0,
-    speed: JET_SPEED
+    speed: JET_SPEED,
+    trail: null
   };
 
   if (jetModelTemplate) {
     jet.mesh = jetModelTemplate.clone();
-    jet.mesh.scale.setScalar(0.5);
+    jet.mesh.scale.setScalar(0.3);
     jet.mesh.traverse((child) => {
       if (child.isMesh && child.material) {
-        child.material = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+        const origMap = child.material.map || null;
+        child.material = new THREE.MeshBasicMaterial({ color: 0xff4444, map: origMap });
       }
     });
     scene.add(jet.mesh);
+    
+    // Add trail
+    jet.trail = createTrail(scene, 0xff4444);
   }
 
   return jet;
 }
 
 function createJetModelTemplate() {
+  // Use a simple jet shape (will be replaced by GLB when loaded)
   const jetGroup = new THREE.Group();
   const fuselage = new THREE.Mesh(
     new THREE.CylinderGeometry(0.3, 0.5, 4, 8),
@@ -266,6 +272,42 @@ function createJetModelTemplate() {
   jetGroup.add(tail);
   return jetGroup;
 }
+
+// Load jet GLB for NPC jets
+let npcJetGLB = null;
+const npcLoader = new GLTFLoader();
+npcLoader.load('/jet.glb', (gltf) => {
+  npcJetGLB = gltf.scene;
+  const box = new THREE.Box3().setFromObject(npcJetGLB);
+  const center = box.getCenter(new THREE.Vector3());
+  npcJetGLB.traverse((child) => {
+    if (child.isMesh) {
+      child.geometry.translate(-center.x, -center.y, -center.z);
+    }
+  });
+  npcJetGLB.position.set(0, 0, 0);
+  const newBox = new THREE.Box3().setFromObject(npcJetGLB);
+  const size = newBox.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  npcJetGLB.scale.setScalar(4 / maxDim);
+  npcJetGLB.rotation.x = Math.PI;
+  npcJetGLB.rotation.z = Math.PI;
+  
+  // Update existing jets with GLB model
+  for (const jet of npcJets) {
+    if (jet.mesh) scene.remove(jet.mesh);
+    jet.mesh = npcJetGLB.clone();
+    jet.mesh.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const origMap = child.material.map || null;
+        child.material = new THREE.MeshBasicMaterial({ color: 0xff4444, map: origMap });
+      }
+    });
+    scene.add(jet.mesh);
+    if (jet.trail) jet.trail = createTrail(scene, 0xff4444);
+  }
+  console.log('NPC Jet GLB loaded');
+});
 
 function initNPCJets() {
   jetModelTemplate = createJetModelTemplate();
@@ -292,6 +334,9 @@ function updateNPCJets(dt) {
     }
 
     if (!jet.mesh) continue;
+    
+    // Update trail
+    if (jet.trail) jet.trail.push(jet.mesh.position.clone());
 
     let closestPlayer = null;
     let closestDist = Infinity;
@@ -336,17 +381,21 @@ function updateNPCJets(dt) {
         }
       }
     } else {
-      jet.patrolAngle += dt * 0.5;
-      const radius = 150;
+      // Patrol around tower in BIG circle formation
+      jet.patrolAngle += dt * 0.3;
+      const radius = 400; // Big circle
       const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
       const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
-      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 10;
+      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 30;
       
       const targetPos = new THREE.Vector3(patrolX, patrolY, patrolZ);
       const dir = targetPos.sub(jet.mesh.position).normalize();
       jet.mesh.position.addScaledVector(dir, jet.speed * dt * 0.5);
       jet.mesh.lookAt(targetPos);
     }
+    
+    // Hide trail when dead
+    if (!jet.alive && jet.trail) jet.trail.line.visible = false;
   }
 }
 
