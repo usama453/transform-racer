@@ -129,13 +129,15 @@ gltfLoader.load('/bike.glb', (gltf) => {
   // Use material that responds to light but keep colors
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {
-      const origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+      let origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+      // If color is too dark, use a default bright color
+      if (origColor < 0x222222) origColor = 0x4488ff;
       const origMap = child.material.map || null;
       child.material = new THREE.MeshStandardMaterial({ 
         color: origColor,
         map: origMap,
-        roughness: 0.7,
-        metalness: 0.1
+        roughness: 0.5,
+        metalness: 0.2
       });
     }
   });
@@ -164,13 +166,15 @@ gltfLoader.load('/jet.glb', (gltf) => {
   // Use material that responds to light but keep colors
   jetModel.traverse((child) => {
     if (child.isMesh && child.material) {
-      const origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+      let origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+      // If color is too dark, use a default bright color
+      if (origColor < 0x222222) origColor = 0xcccccc;
       const origMap = child.material.map || null;
       child.material = new THREE.MeshStandardMaterial({ 
         color: origColor,
         map: origMap,
-        roughness: 0.7,
-        metalness: 0.1
+        roughness: 0.5,
+        metalness: 0.2
       });
     }
   });
