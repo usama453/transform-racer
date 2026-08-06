@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Import Each Module</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; font-size: 12px; }
+    .step { margin: 2px 0; padding: 3px 6px; border: 1px solid #333; border-radius: 3px; }
+    .pass { border-color: #00ff88; }
+    .fail { border-color: #ff4444; color: #ff4444; }
+    h1 { color: #fff; }
+    #log { margin-top: 10px; white-space: pre-wrap; background: #000; padding: 10px; }
+  </style>
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Import Each Module Test</h1>
+  <div id="log">Starting...</div>
+
+  <div id="hud" style="display:none">
+    <div id="players-online">0</div>
+    <button id="sound-toggle">&#128266;</button>
+    <div id="speedometer"><div id="speed-num">0</div><div id="speed-unit">km/h</div></div>
+    <div id="health-panel"><div class="health-label">HULL</div><div id="health-bar"><div id="health-fill"></div></div></div>
+    <div id="nitro-panel"><div class="nitro-label">NITRO</div><div id="nitro-bar"><div id="nitro-fill"></div></div></div>
+    <div id="shoot-indicator" class="ready">FIRE</div>
+    <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="transform-hint">Press F</div>
+    <div id="warning"></div>
+    <div id="spawn-capture"></div>
+    <div id="edge-tags"></div>
+    <div id="kill-feed"></div>
+    <div id="hit-flash"></div>
+    <div id="chat-box"><div id="chat-log"></div><input id="chat-input" /></div>
+  </div>
+  <div id="start-overlay"></div>
+  <input id="name-input" />
+  <button id="join-btn">JOIN</button>
+  <button id="screenshake-toggle">SHAKE</button>
+  <div id="server-status" class="connecting">Connecting...</div>
+
+  <script type="module">
+    const log = [];
+    function add(msg) {
+      log.push(msg);
+      document.getElementById('log').textContent = log.join('\n');
+    }
+
+    try {
+      add('1. Import three...');
+      const THREE = await import('three');
+      add('   OK - THREE r' + THREE.REVISION);
+
+      add('2. Import GLTFLoader...');
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      add('   OK - GLTFLoader');
+
+      add('3. Import vehicle.js...');
+      const { Vehicle, PLANE_GROUND_Y, WORLD_RADIUS } = await import('./js/vehicle.js');
+      add('   OK - Vehicle');
+
+      add('4. Import input.js...');
+      const { Input } = await import('./js/input.js');
+      add('   OK - Input');
+
+      add('5. Import network.js...');
+      const { Network } = await import('./js/network.js');
+      add('   OK - Network');
+
+      add('6. Import hud.js...');
+      const { HUD } = await import('./js/hud.js');
+      add('   OK - HUD');
+
+      add('7. Import world.js...');
+      const worldMod = await import('./js/world.js');
+      add('   OK - world.js: ' + Object.keys(worldMod).join(', '));
+
+      add('8. Import render.js...');
+      const renderMod = await import('./js/render.js');
+      add('   OK - render.js: ' + Object.keys(renderMod).join(', '));
+
+      add('9. Import audio.js...');
+      const { SoundManager } = await import('./js/audio.js');
+      add('   OK - SoundManager');
+
+      add('10. Import minimap.js...');
+      const { Minimap } = await import('./js/minimap.js');
+      add('   OK - Minimap');
+
+      add('ALL IMPORTS SUCCESSFUL!');
+    } catch (e) {
+      add('ERROR: ' + e.message);
+    }
+  </script>
+</body>
+</html>
