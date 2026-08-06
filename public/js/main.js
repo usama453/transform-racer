@@ -213,7 +213,7 @@ window.__updateVehicleVisibility = function(mode) {
 const TOWER_POS = new THREE.Vector3(285, 1750, 45);
 const TERRITORY_RADIUS = 800;
 const JET_COUNT = 8;
-const JET_SPEED = 80;
+const JET_SPEED = 150;
 const JET_HEALTH = 2;
 const RESPAWN_TIME = 15;
 
@@ -296,7 +296,7 @@ npcLoader.load('/jet.glb', (gltf) => {
   const newBox = new THREE.Box3().setFromObject(npcJetGLB);
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
-  npcJetGLB.scale.setScalar(80 / maxDim);
+  npcJetGLB.scale.setScalar(60 / maxDim);
   npcJetGLB.rotation.x = Math.PI;
   npcJetGLB.rotation.z = Math.PI;
   
@@ -392,17 +392,16 @@ function updateNPCJets(dt) {
         }
       }
     } else {
-      // Patrol around tower in BIG circle formation (3x bigger than disk)
-      jet.patrolAngle += dt * 0.2;
+      // Patrol around tower in BIG circle formation
+      jet.patrolAngle += dt * 0.5; // Faster rotation
       const radius = 900; // Circle radius
       const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
       const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
       const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 40;
       
-      const targetPos = new THREE.Vector3(patrolX, patrolY, patrolZ);
-      const dir = targetPos.sub(jet.mesh.position).normalize();
-      jet.mesh.position.addScaledVector(dir, jet.speed * dt * 0.5);
-      jet.mesh.lookAt(targetPos);
+      // Directly set position to maintain circle (no shrinking)
+      jet.mesh.position.set(patrolX, patrolY, patrolZ);
+      jet.mesh.lookAt(TOWER_POS.x, patrolY, TOWER_POS.z + radius);
     }
     
     // Hide trail when dead
