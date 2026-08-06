@@ -71,6 +71,13 @@
       <input id="chat-input" type="text" placeholder="Press Enter to chat..." autocomplete="off" maxlength="200" />
     </div>
   </div>
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('ERROR:', e.message, 'at', e.filename + ':' + e.lineno);
+      var el = document.getElementById('server-status');
+      if (el) el.textContent = 'Error: ' + e.message;
+    });
+  </script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
