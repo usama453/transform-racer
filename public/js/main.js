@@ -126,10 +126,15 @@ gltfLoader.load('/bike.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
   bikeModel.position.y = 1.5; // Move up so it sits on ground
-  // Make materials flat/unlit
+  // Make materials flat/unlit but keep colors
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {
-      child.material = new THREE.MeshBasicMaterial({ color: child.material.color || 0xffffff });
+      const origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+      const origMap = child.material.map || null;
+      child.material = new THREE.MeshBasicMaterial({ 
+        color: origColor,
+        map: origMap
+      });
     }
   });
   vehicleMesh.add(bikeModel);
@@ -153,10 +158,15 @@ gltfLoader.load('/jet.glb', (gltf) => {
   jetModel.scale.setScalar(16 / maxDim);
   jetModel.rotation.x = Math.PI; // Rotate 180 degrees on X axis to face forward
   jetModel.position.y = 3; // Move up for plane height
-  // Make materials flat/unlit
+  // Make materials flat/unlit but keep colors
   jetModel.traverse((child) => {
     if (child.isMesh && child.material) {
-      child.material = new THREE.MeshBasicMaterial({ color: child.material.color || 0xffffff });
+      const origColor = child.material.color ? child.material.color.getHex() : 0xffffff;
+      const origMap = child.material.map || null;
+      child.material = new THREE.MeshBasicMaterial({ 
+        color: origColor,
+        map: origMap
+      });
     }
   });
   jetModel.visible = false; // Hidden by default (start in car mode)
