@@ -234,7 +234,7 @@ function createJetNPC(index) {
 
   if (jetModelTemplate) {
     jet.mesh = jetModelTemplate.clone();
-    jet.mesh.scale.setScalar(0.3);
+    jet.mesh.scale.setScalar(0.6);
     jet.mesh.traverse((child) => {
       if (child.isMesh && child.material) {
         const origMap = child.material.map || null;
@@ -296,7 +296,7 @@ npcLoader.load('/jet.glb', (gltf) => {
   const newBox = new THREE.Box3().setFromObject(npcJetGLB);
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
-  npcJetGLB.scale.setScalar(4 / maxDim);
+  npcJetGLB.scale.setScalar(8 / maxDim);
   npcJetGLB.rotation.x = Math.PI;
   npcJetGLB.rotation.z = Math.PI;
   
