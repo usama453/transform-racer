@@ -695,7 +695,7 @@ function buildMegaTower(scene) {
   // Buildings on deck removed
 
   scene.add(g);
-  return { towerGroup: g, rings, spin, orbs, beam, floatRing };
+  return { towerGroup: g, rings, spin, orbs: [], beam: null, floatRing: null };
 }
 
 function buildCity(scene) {
