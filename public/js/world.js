@@ -621,12 +621,13 @@ function buildMegaTower(scene) {
   g.add(shaft);
 
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.6, SH * 0.92, 1.6), stripMat);
-    strip.position.set(Math.cos(a) * 21, SH * 0.46, Math.sin(a) * 21);
-    g.add(strip);
-  }
+  // Strips removed (were pillars)
+  // for (let i = 0; i < 4; i++) {
+  //   const a = (i / 4) * Math.PI * 2;
+  //   const strip = new THREE.Mesh(new THREE.BoxGeometry(1.6, SH * 0.92, 1.6), stripMat);
+  //   strip.position.set(Math.cos(a) * 21, SH * 0.46, Math.sin(a) * 21);
+  //   g.add(strip);
+  // }
 
   const ringGeo = new THREE.TorusGeometry(1, 1.4, 8, 40);
   const rings = [];
