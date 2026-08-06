@@ -126,20 +126,13 @@ gltfLoader.load('/bike.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
   bikeModel.position.y = 1.5; // Move up so it sits on ground
-  // Use material that responds to light but keep colors
+  // Use MeshBasicMaterial to show colors without lighting issues
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {
       const origMap = child.material.map || null;
-      // Use white color so textures show correctly, or preserve original if no texture
-      let origColor = 0xffffff;
-      if (!origMap && child.material.color) {
-        origColor = child.material.color.getHex();
-      }
-      child.material = new THREE.MeshStandardMaterial({ 
-        color: origColor,
-        map: origMap,
-        roughness: 0.5,
-        metalness: 0.2
+      child.material = new THREE.MeshBasicMaterial({ 
+        color: 0xffffff,
+        map: origMap
       });
     }
   });
@@ -165,20 +158,13 @@ gltfLoader.load('/jet.glb', (gltf) => {
   jetModel.rotation.x = Math.PI; // Flip upside down
   jetModel.rotation.z = Math.PI; // Rotate 180 degrees on Z axis
   jetModel.position.y = 3; // Move up for plane height
-  // Use material that responds to light but keep colors
+  // Use MeshBasicMaterial to show colors without lighting issues
   jetModel.traverse((child) => {
     if (child.isMesh && child.material) {
       const origMap = child.material.map || null;
-      // Use white color so textures show correctly, or preserve original if no texture
-      let origColor = 0xffffff;
-      if (!origMap && child.material.color) {
-        origColor = child.material.color.getHex();
-      }
-      child.material = new THREE.MeshStandardMaterial({ 
-        color: origColor,
-        map: origMap,
-        roughness: 0.5,
-        metalness: 0.2
+      child.material = new THREE.MeshBasicMaterial({ 
+        color: 0xffffff,
+        map: origMap
       });
     }
   });
