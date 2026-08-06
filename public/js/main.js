@@ -210,7 +210,7 @@ window.__updateVehicleVisibility = function(mode) {
 // ============================================================
 // NPC Fighter Jets - Patrol central tower, chase players
 // ============================================================
-const TOWER_POS = new THREE.Vector3(285, 1714, 45);
+const TOWER_POS = new THREE.Vector3(285, 1750, 45);
 const TERRITORY_RADIUS = 800;
 const JET_COUNT = 4;
 const JET_SPEED = 80;
