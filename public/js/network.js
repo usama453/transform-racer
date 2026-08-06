@@ -142,4 +142,8 @@ export class Network {
   sendHitPlayer(targetId, pushX, pushZ, speed) {
     this.socket.emit('hitPlayer', { targetId, pushX, pushZ, speed });
   }
+
+  sendTagTransfer(newItId) {
+    this.socket.emit('tagTransfer', { newItId });
+  }
 }

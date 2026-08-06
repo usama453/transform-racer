@@ -11,6 +11,7 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/lib', express.static(path.join(__dirname, 'node_modules/three/build')));
+app.use('/lib', express.static(path.join(__dirname, 'public/lib')));
 app.use('/libsio', express.static(path.join(__dirname, 'node_modules/socket.io/client-dist')));
 
 const WORLD_RADIUS = 9000;
@@ -227,6 +228,11 @@ io.on('connection', (socket) => {
 
   socket.broadcast.emit('playerJoined', { ...player });
 
+  // First player becomes "it"
+  if (players.size === 1) {
+    player.isIt = true;
+  }
+
   socket.on('setName', (name) => {
     const clean = String(name || '').slice(0, 16).trim() || 'Pilot';
     player.name = clean;
@@ -339,6 +345,17 @@ io.on('connection', (socket) => {
     const idx = Number(data && data.idx);
     if (!Number.isInteger(idx) || idx < 0 || idx > 30000) return;
     socket.broadcast.emit('break', { idx });
+  });
+
+  socket.on('tagTransfer', (data) => {
+    const newIt = players.get(data.newItId);
+    if (newIt) {
+      for (const [pid, p] of players) {
+        p.isIt = false;
+      }
+      newIt.isIt = true;
+      io.emit('tagTransferred', { newItId: data.newItId });
+    }
   });
 
   socket.on('hitPlayer', (data) => {
