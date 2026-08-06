@@ -105,13 +105,14 @@ let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 
-// Load bike GLB model to replace procedural car
+// Load GLB models for bike (car mode) and jet (plane mode)
 let bikeModel = null;
+let jetModel = null;
 const gltfLoader = new GLTFLoader();
+
+// Load bike for car mode
 gltfLoader.load('/bike.glb', (gltf) => {
   bikeModel = gltf.scene;
-  
-  // Center the geometry
   const box = new THREE.Box3().setFromObject(bikeModel);
   const center = box.getCenter(new THREE.Vector3());
   bikeModel.traverse((child) => {
@@ -120,22 +121,41 @@ gltfLoader.load('/bike.glb', (gltf) => {
     }
   });
   bikeModel.position.set(0, 0, 0);
-  
-  // Scale bike (3x bigger)
   const newBox = new THREE.Box3().setFromObject(bikeModel);
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
-  const scale = 6 / maxDim;
-  bikeModel.scale.setScalar(scale);
-  
-  // Add bike to vehicleMesh and hide procedural car parts
+  bikeModel.scale.setScalar(6 / maxDim);
   vehicleMesh.add(bikeModel);
-  if (vehicleMesh.userData.carParts) {
-    vehicleMesh.userData.carParts.visible = false;
-  }
-  
-  console.log('Bike model loaded, size:', size.x.toFixed(1), size.y.toFixed(1), size.z.toFixed(1));
+  console.log('Bike loaded');
 });
+
+// Load jet for plane mode
+gltfLoader.load('/jet.glb', (gltf) => {
+  jetModel = gltf.scene;
+  const box = new THREE.Box3().setFromObject(jetModel);
+  const center = box.getCenter(new THREE.Vector3());
+  jetModel.traverse((child) => {
+    if (child.isMesh) {
+      child.geometry.translate(-center.x, -center.y, -center.z);
+    }
+  });
+  jetModel.position.set(0, 0, 0);
+  const newBox = new THREE.Box3().setFromObject(jetModel);
+  const size = newBox.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  jetModel.scale.setScalar(4 / maxDim);
+  jetModel.visible = false; // Hidden by default (start in car mode)
+  vehicleMesh.add(jetModel);
+  console.log('Jet loaded');
+});
+
+// Custom visibility handler for GLB models
+window.__updateVehicleVisibility = function(mode) {
+  if (vehicleMesh.userData.carParts) vehicleMesh.userData.carParts.visible = false;
+  if (vehicleMesh.userData.planeParts) vehicleMesh.userData.planeParts.visible = false;
+  if (bikeModel) bikeModel.visible = (mode === 'car');
+  if (jetModel) jetModel.visible = (mode === 'plane');
+};
 
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
@@ -146,6 +166,7 @@ let shake = 0;
 
 
 setVehicleMode(vehicleMesh, 'car');
+window.__updateVehicleVisibility('car');
 
 
 let joined = false;
@@ -911,11 +932,13 @@ function updateOwnVisual(dt) {
     if (p >= 0.5 && displayedMode !== vehicle.nextMode) {
       displayedMode = vehicle.nextMode;
       setVehicleMode(vehicleMesh, displayedMode);
+      window.__updateVehicleVisibility(displayedMode);
       transformFlash.life = 0.5;
     }
   } else if (displayedMode !== vehicle.mode) {
     displayedMode = vehicle.mode;
     setVehicleMode(vehicleMesh, displayedMode);
+    window.__updateVehicleVisibility(displayedMode);
     transformFlash.life = 0.5;
     vehicleMesh.scale.setScalar(1);
   } else {
