@@ -121,11 +121,11 @@ gltfLoader.load('/bike.glb', (gltf) => {
   });
   bikeModel.position.set(0, 0, 0);
   
-  // Scale to reasonable size (about 2 units long)
+  // Scale bike (3x bigger)
   const newBox = new THREE.Box3().setFromObject(bikeModel);
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
-  const scale = 2 / maxDim;
+  const scale = 6 / maxDim;
   bikeModel.scale.setScalar(scale);
   
   // Add bike to vehicleMesh and hide procedural car parts
