@@ -243,7 +243,7 @@ function createJetNPC(index) {
     });
     
     // Set initial position to patrol position at tower height
-    const radius = 1800;
+    const radius = 900;
     const startX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
     const startZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
     jet.mesh.position.set(startX, TOWER_POS.y, startZ);
@@ -390,7 +390,7 @@ function updateNPCJets(dt) {
     } else {
       // Patrol around tower in BIG circle formation (3x bigger than disk)
       jet.patrolAngle += dt * 0.2;
-      const radius = 1800; // 3x bigger circle
+      const radius = 900; // Circle radius
       const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
       const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
       const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 40;
