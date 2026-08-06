@@ -799,8 +799,8 @@ function updateCamera(dt) {
     return;
   }
 
-  const backDist = mode === 'plane' ? 17 : 10;
-  const height = mode === 'plane' ? 7.5 : 5.2;
+  const backDist = mode === 'plane' ? 10 : 10;
+  const height = mode === 'plane' ? 5 : 5.2;
   fwdTmp.set(fwd.x, 0, fwd.z).normalize();
 
   const desired = new THREE.Vector3();
