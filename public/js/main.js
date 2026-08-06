@@ -105,14 +105,6 @@ let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 
-// Add custom directional light for vehicle only (doesn't affect world)
-const vehicleLight = new THREE.DirectionalLight(0xffffff, 2);
-vehicleLight.position.set(2, 5, 3);
-vehicleMesh.add(vehicleLight);
-
-// Add ambient fill for vehicle
-vehicleMesh.add(new THREE.AmbientLight(0x444444, 0.5));
-
 // Load GLB models for bike (car mode) and jet (plane mode)
 let bikeModel = null;
 let jetModel = null;
