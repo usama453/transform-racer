@@ -62,18 +62,24 @@
       (gltf) => {
         const car = gltf.scene;
         
-        // Center the model at origin first
+        // Center the model by translating all its meshes
         const box = new THREE.Box3().setFromObject(car);
         const center = box.getCenter(new THREE.Vector3());
         
-        // Move model so its center is at world origin
-        car.position.x -= center.x;
-        car.position.y -= center.y;
-        car.position.z -= center.z;
+        // Move all child meshes to center the geometry
+        car.traverse((child) => {
+          if (child.isMesh) {
+            child.geometry.translate(-center.x, -center.y, -center.z);
+          }
+        });
+        
+        // Reset model position to origin
+        car.position.set(0, 0, 0);
         
         // Recalculate bounding box after centering
         const newBox = new THREE.Box3().setFromObject(car);
         const size = newBox.getSize(new THREE.Vector3());
+        const newCenter = newBox.getCenter(new THREE.Vector3());
         
         // Scale to fit - make it about 3 units long
         const maxDim = Math.max(size.x, size.y, size.z);
@@ -89,7 +95,8 @@
         scene.add(axes);
         
         // Log for debugging
-        console.log('Center:', center.x, center.y, center.z);
+        console.log('Original center:', center.x.toFixed(1), center.y.toFixed(1), center.z.toFixed(1));
+        console.log('New center:', newCenter.x.toFixed(2), newCenter.y.toFixed(2), newCenter.z.toFixed(2));
         console.log('Size:', size.x.toFixed(1), size.y.toFixed(1), size.z.toFixed(1));
         console.log('Scale:', scale.toFixed(4));
         
