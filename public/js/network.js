@@ -1,6 +1,7 @@
 export class Network {
   constructor() {
     this.socket = null;
+    this.onTagTransferred = null;
     this.connected = false;
     this.players = new Map();
     this.myId = null;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { Vehicle, PLANE_GROUND_Y, WORLD_RADIUS } from './vehicle.js';
 import { Input } from './input.js';
 import { Network } from './network.js';
@@ -92,6 +93,30 @@ resizeBlurRT();
 const world = createWorld(scene);
 world.camera = camera;
 
+// Load GLB models
+const gltfLoader = new GLTFLoader();
+let carModel = null;
+let planeModel = null;
+async function loadModels() {
+  try {
+    const carGltf = await gltfLoader.loadAsync('/car.glb');
+    carModel = carGltf.scene;
+    const box = new THREE.Box3().setFromObject(carModel);
+    const center = box.getCenter(new THREE.Vector3());
+    carModel.position.sub(center);
+    carModel.position.y += box.max.y - center.y;
+  } catch(e) { console.warn('car.glb failed to load', e); }
+  try {
+    const planeGltf = await gltfLoader.loadAsync('/plane.glb');
+    planeModel = planeGltf.scene;
+    const box = new THREE.Box3().setFromObject(planeModel);
+    const center = box.getCenter(new THREE.Vector3());
+    planeModel.position.sub(center);
+    planeModel.position.y += box.max.y - center.y;
+  } catch(e) { console.warn('plane.glb failed to load', e); }
+}
+loadModels();
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -108,6 +133,8 @@ let rampJumpCount = 0;
 
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
+vehicleMesh.userData.carModel = carModel;
+vehicleMesh.userData.planeModel = planeModel;
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
 const soundBtn = document.getElementById('sound-toggle');
@@ -142,6 +169,10 @@ vehicle.onBounce = (vy) => {
 vehicle.onTransformToPlane = () => sonicBoom();
 
 let myName = 'Pilot';
+let isIt = false; // tag game: are you "it"?
+let itPlayerId = null; // who is currently "it"
+let planeTransformTime = 0; // time spent in plane mode
+const PLANE_TIME_LIMIT = 30; // seconds
 
 function labelOpacity(dist) {
   if (dist < 140) return 1;
@@ -228,6 +259,11 @@ function syncRemotes(dt) {
     animateVehicle(rp.mesh, dt, {
       mode: rp.mode, speed: s.speed || 0, nitroActive: false, steer: 0
     });
+
+    // Update spatial sound for this remote player
+    if (audio.updateSpatialSound) {
+      audio.updateSpatialSound(id, rp.curPos, rp.mode, s.speed || 0);
+    }
   }
 }
 
@@ -276,6 +312,13 @@ function collidePlayers() {
     rp.targetPos.x += pushX;
     rp.targetPos.z += pushZ;
     net.sendHitPlayer(id, nx, nz, Math.abs(vn));
+
+    // Tag game: if I'm "it" and I hit someone, they become "it"
+    if (isIt && s.health > 0) {
+      isIt = false;
+      net.sendTagTransfer(id);
+      hud.showWarning('TAG! They are now IT!');
+    }
   }
   return impact;
 }
@@ -636,6 +679,16 @@ net.onPlayerPushed = (data) => {
   rp.targetPos.z += data.pushZ;
 };
 
+net.onTagTransferred = (data) => {
+  if (data.newItId === net.myId) {
+    isIt = true;
+    hud.showWarning('YOU ARE IT! Tag someone else!');
+  } else {
+    isIt = false;
+  }
+  itPlayerId = data.newItId;
+};
+
 const lookTarget = new THREE.Vector3();
 const fwdTmp = new THREE.Vector3();
 
@@ -825,6 +878,21 @@ function updateOwnVisual(dt) {
     vehicleMesh.visible = Math.floor(performance.now() / 80) % 2 === 0;
   } else {
     vehicleMesh.visible = cameraView === 'chase';
+  }
+
+  // Plane time limit countdown
+  if (displayedMode === 'plane' && !vehicle.transforming) {
+    planeTransformTime += dt;
+    if (planeTransformTime >= PLANE_TIME_LIMIT) {
+      // Force transform back to car
+      vehicle.transform();
+      audio.transform('car');
+      net.sendTransform('car');
+      planeTransformTime = 0;
+      hud.showWarning('Plane time expired!');
+    }
+  } else if (displayedMode === 'car') {
+    planeTransformTime = 0;
   }
 
   if (vehicle.transforming) {
@@ -1074,6 +1142,7 @@ function animate() {
   minimap.update(vehicle, others);
 
   audio.resume();
+  audio.updateListener(vehicle.position, vehicle.yaw, vehicle.pitch);
   audio.updateEngine({
     mode: vehicle.mode,
     speed: vehicle.speed,

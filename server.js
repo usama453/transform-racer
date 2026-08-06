@@ -107,6 +107,7 @@ function createPlayer(socket) {
     roll: 0,
     mode: 'car',
     speed: 0,
+    isIt: false,
     nitro: 100,
     health: 3,
     lastUpdate: 0,
