@@ -1070,7 +1070,7 @@ function createJetNPC(index) {
   return jet;
 }
 
-function initNPCJets() {
+function createJetModelTemplate() {
   // Create a simple jet shape using geometry
   const jetGroup = new THREE.Group();
   
@@ -1097,7 +1097,12 @@ function initNPCJets() {
   tail.position.x = -1.5;
   jetGroup.add(tail);
 
-  jetModelTemplate = jetGroup;
+  return jetGroup;
+}
+
+function initNPCJets() {
+  // Create template first
+  jetModelTemplate = createJetModelTemplate();
 
   // Create jet NPCs
   for (let i = 0; i < JET_COUNT; i++) {
