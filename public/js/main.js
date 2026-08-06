@@ -126,14 +126,27 @@ gltfLoader.load('/bike.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
   bikeModel.position.y = 1.5; // Move up so it sits on ground
-  // Use MeshBasicMaterial to show colors without lighting issues
+  // Use MeshBasicMaterial but preserve original colors
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {
       const origMap = child.material.map || null;
-      child.material = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff,
-        map: origMap
-      });
+      // Preserve original color if it exists and isn't black
+      let origColor = 0xffffff;
+      if (child.material.color && child.material.color.getHex() > 0) {
+        origColor = child.material.color.getHex();
+      }
+      // Check for vertex colors
+      if (child.geometry && child.geometry.attributes.color) {
+        child.material = new THREE.MeshBasicMaterial({ 
+          vertexColors: true,
+          map: origMap
+        });
+      } else {
+        child.material = new THREE.MeshBasicMaterial({ 
+          color: origColor,
+          map: origMap
+        });
+      }
     }
   });
   vehicleMesh.add(bikeModel);
@@ -158,14 +171,27 @@ gltfLoader.load('/jet.glb', (gltf) => {
   jetModel.rotation.x = Math.PI; // Flip upside down
   jetModel.rotation.z = Math.PI; // Rotate 180 degrees on Z axis
   jetModel.position.y = 3; // Move up for plane height
-  // Use MeshBasicMaterial to show colors without lighting issues
+  // Use MeshBasicMaterial but preserve original colors
   jetModel.traverse((child) => {
     if (child.isMesh && child.material) {
       const origMap = child.material.map || null;
-      child.material = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff,
-        map: origMap
-      });
+      // Preserve original color if it exists and isn't black
+      let origColor = 0xffffff;
+      if (child.material.color && child.material.color.getHex() > 0) {
+        origColor = child.material.color.getHex();
+      }
+      // Check for vertex colors
+      if (child.geometry && child.geometry.attributes.color) {
+        child.material = new THREE.MeshBasicMaterial({ 
+          vertexColors: true,
+          map: origMap
+        });
+      } else {
+        child.material = new THREE.MeshBasicMaterial({ 
+          color: origColor,
+          map: origMap
+        });
+      }
     }
   });
   jetModel.visible = false; // Hidden by default (start in car mode)
