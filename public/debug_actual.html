@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Actual Main.js Test</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; font-size: 13px; }
+    .step { margin: 3px 0; padding: 5px 8px; border: 1px solid #333; border-radius: 3px; }
+    .pass { border-color: #00ff88; background: rgba(0,255,136,0.1); }
+    .fail { border-color: #ff4444; background: rgba(255,68,68,0.1); color: #ff4444; }
+    h1 { color: #fff; font-size: 16px; }
+    button { background: #00ccff; border: none; padding: 10px 20px; cursor: pointer; font-size: 16px; margin: 10px 0; }
+    #results { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Actual main.js Module Test</h1>
+  <button onclick="runTest()">Import main.js</button>
+  <div id="results"></div>
+
+  <div id="hud" style="display:none">
+    <div id="players-online">0</div>
+    <button id="sound-toggle">🔊</button>
+    <div id="speedometer"><div id="speed-num">0</div><div id="speed-unit">km/h</div></div>
+    <div id="health-panel"><div id="health-bar"><div id="health-fill"></div></div></div>
+    <div id="nitro-panel"><div id="nitro-bar"><div id="nitro-fill"></div></div></div>
+    <div id="shoot-indicator">FIRE</div>
+    <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="transform-hint">Press F</div>
+    <div id="warning"></div>
+    <div id="spawn-capture"></div>
+    <div id="edge-tags"></div>
+    <div id="kill-feed"></div>
+    <div id="hit-flash"></div>
+    <div id="chat-box"><div id="chat-log"></div><input id="chat-input" /></div>
+    <div id="start-overlay"></div>
+    <input id="name-input" />
+    <button id="join-btn">JOIN</button>
+    <button id="screenshake-toggle">SHAKE</button>
+    <div id="server-status"></div>
+  </div>
+
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    window.runTest = async function() {
+      const results = [];
+      function add(step, type, msg) {
+        results.push({ step, type, msg });
+        document.getElementById('results').innerHTML = results.map(r =>
+          `<div class="step ${r.type}">${r.step}: ${r.msg}</div>`
+        ).join('');
+      }
+
+      add('Starting...', 'pass', 'begin');
+
+      try {
+        await import('./js/main.js');
+        add('main.js loaded!', 'pass', 'Module executed');
+      } catch (e) {
+        add('main.js ERROR', 'fail', e.message);
+        add('Stack', 'fail', e.stack ? e.stack.split('\n').slice(0, 4).join(' | ') : 'none');
+      }
+    };
+  </script>
+</body>
+</html>
