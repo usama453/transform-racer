@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Vehicle, PLANE_GROUND_Y, WORLD_RADIUS } from './vehicle.js';
 import { Input } from './input.js';
 import { Network } from './network.js';
@@ -103,6 +104,38 @@ let rampJumpCount = 0;
 
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
+
+// Load bike GLB model to replace procedural car
+let bikeModel = null;
+const gltfLoader = new GLTFLoader();
+gltfLoader.load('/bike.glb', (gltf) => {
+  bikeModel = gltf.scene;
+  
+  // Center the geometry
+  const box = new THREE.Box3().setFromObject(bikeModel);
+  const center = box.getCenter(new THREE.Vector3());
+  bikeModel.traverse((child) => {
+    if (child.isMesh) {
+      child.geometry.translate(-center.x, -center.y, -center.z);
+    }
+  });
+  bikeModel.position.set(0, 0, 0);
+  
+  // Scale to reasonable size (about 2 units long)
+  const newBox = new THREE.Box3().setFromObject(bikeModel);
+  const size = newBox.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const scale = 2 / maxDim;
+  bikeModel.scale.setScalar(scale);
+  
+  // Add bike to vehicleMesh and hide procedural car parts
+  vehicleMesh.add(bikeModel);
+  if (vehicleMesh.userData.carParts) {
+    vehicleMesh.userData.carParts.visible = false;
+  }
+  
+  console.log('Bike model loaded, size:', size.x.toFixed(1), size.y.toFixed(1), size.z.toFixed(1));
+});
 
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
