@@ -251,7 +251,7 @@ function createJetNPC(index) {
     scene.add(jet.mesh);
     
     // Add trail
-    jet.trail = createTrail(scene, 0xff4444);
+    jet.trail = createTrail(scene, 0xff4444, 160);
   }
 
   return jet;
@@ -296,7 +296,7 @@ npcLoader.load('/jet.glb', (gltf) => {
   const newBox = new THREE.Box3().setFromObject(npcJetGLB);
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
-  npcJetGLB.scale.setScalar(8 / maxDim);
+  npcJetGLB.scale.setScalar(80 / maxDim);
   npcJetGLB.rotation.x = Math.PI;
   npcJetGLB.rotation.z = Math.PI;
   
@@ -753,8 +753,8 @@ function spawnBuildingDebris(b) {
   );
 }
 
-function createTrail(scene, colorHex) {
-  const N = 40;
+function createTrail(scene, colorHex, trailLength = 40) {
+  const N = trailLength;
   const posArr = new Float32Array(N * 3);
   const colArr = new Float32Array(N * 3);
   const geo = new THREE.BufferGeometry();

@@ -704,10 +704,10 @@ function buildMegaTower(scene) {
   glow.position.y = 14;
   spin.add(glow);
 
-  const windowTex = makeWindowTexture();
+  // Plain colored buildings (no window texture)
+  const windowTex = null; // No texture
   const glassMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff, map: windowTex, roughness: 0.45, metalness: 0.1,
-    emissive: 0x3a6ea8, emissiveMap: windowTex, emissiveIntensity: 0.75
+    color: 0x334466, roughness: 0.6, metalness: 0.2
   });
   const neonColors = [0x00ccff, 0xff00ff, 0x00ff88, 0xffaa00];
   const layouts = [];
@@ -819,10 +819,9 @@ function buildCity(scene) {
 
   const unit = new THREE.BoxGeometry(1, 1, 1);
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x14142a, roughness: 0.75, metalness: 0.2 });
-  const windowTex = makeWindowTexture();
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: windowTex, roughness: 0.45, metalness: 0.1, emissive: 0x3a6ea8, emissiveMap: windowTex, emissiveIntensity: 0.75 });
-  const strokeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false });
-  const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x334466, roughness: 0.6, metalness: 0.2 });
+  const strokeMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, side: THREE.BackSide, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
 
   const bodies = new THREE.InstancedMesh(unit, bodyMat, N);
   const glasses = new THREE.InstancedMesh(unit, glassMat, N);
