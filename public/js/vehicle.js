@@ -344,11 +344,9 @@ export class Vehicle {
     this.position.addScaledVector(this.velocity, dt);
 
     // Check platform landing (tower top)
-    if (this.velocity.y <= 0) {
-      checkPlatformLanding(this);
-    }
+    const onPlatform = checkPlatformLanding(this);
 
-    if (this.position.y < PLANE_GROUND_Y) {
+    if (this.position.y < PLANE_GROUND_Y && !onPlatform) {
       this.position.y = PLANE_GROUND_Y;
       if (this.velocity.y < -PLANE_BOUNCE_MIN) {
         this.velocity.y = -this.velocity.y * PLANE_BOUNCE_REST;
@@ -450,7 +448,7 @@ export class Vehicle {
 const TOWER_PLATFORM = {
   x: 285,
   z: 45,
-  y: 1728, // Top of deck
+  y: 1714, // Top of deck (DECK height)
   radius: 120 // White disk radius
 };
 
