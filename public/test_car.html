@@ -30,8 +30,8 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
     
-    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(5, 3, 5);
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10000);
+    camera.position.set(500, 300, 500);
     
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -70,10 +70,15 @@
         car.position.sub(center);
         car.position.y += size.y / 2;
         
-        // Scale to fit
+        // Scale to fit - make it about 3 units long
         const maxDim = Math.max(size.x, size.y, size.z);
         const scale = 3 / maxDim;
         car.scale.setScalar(scale);
+        
+        // Log for debugging
+        console.log('Original size:', size.x, size.y, size.z);
+        console.log('Scale factor:', scale);
+        console.log('Position:', car.position.x, car.position.y, car.position.z);
         
         scene.add(car);
         
