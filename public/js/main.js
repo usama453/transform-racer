@@ -210,7 +210,7 @@ window.__updateVehicleVisibility = function(mode) {
 // ============================================================
 // NPC Fighter Jets - Patrol central tower, chase players
 // ============================================================
-const TOWER_POS = new THREE.Vector3(285, 80, 45);
+const TOWER_POS = new THREE.Vector3(285, 1714, 45);
 const TERRITORY_RADIUS = 800;
 const JET_COUNT = 4;
 const JET_SPEED = 80;
@@ -386,7 +386,7 @@ function updateNPCJets(dt) {
       const radius = 400; // Big circle
       const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
       const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
-      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 30;
+      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 20;
       
       const targetPos = new THREE.Vector3(patrolX, patrolY, patrolZ);
       const dir = targetPos.sub(jet.mesh.position).normalize();
