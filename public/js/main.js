@@ -208,6 +208,7 @@ window.__updateVehicleVisibility = function(mode) {
 };
 
 const audio = new SoundManager();
+initNPCJets();
 const minimap = new Minimap(document.getElementById('minimap'));
 const soundBtn = document.getElementById('sound-toggle');
 const shakeBtn = document.getElementById('screenshake-toggle');
@@ -1030,6 +1031,161 @@ function updateOwnVisual(dt) {
   }
 }
 
+// ============================================================
+// NPC Fighter Jets - Patrol central tower, chase players
+// ============================================================
+const TOWER_POS = new THREE.Vector3(285, 1714, 45);
+const TERRITORY_RADIUS = 800;
+const JET_COUNT = 4;
+const JET_SPEED = 80;
+const JET_HEALTH = 2;
+const RESPAWN_TIME = 15;
+
+let npcJets = [];
+let jetModelTemplate = null;
+
+function createJetNPC(index) {
+  const jet = {
+    mesh: null,
+    health: JET_HEALTH,
+    alive: true,
+    target: null,
+    patrolAngle: (index / JET_COUNT) * Math.PI * 2,
+    respawnTimer: 0,
+    speed: JET_SPEED
+  };
+
+  if (jetModelTemplate) {
+    jet.mesh = jetModelTemplate.clone();
+    // Scale and orient
+    jet.mesh.scale.setScalar(0.5);
+    jet.mesh.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.material = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+      }
+    });
+    scene.add(jet.mesh);
+  }
+
+  return jet;
+}
+
+function initNPCJets() {
+  // Create a simple jet shape using geometry
+  const jetGroup = new THREE.Group();
+  
+  // Fuselage
+  const fuselage = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.5, 4, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff4444 })
+  );
+  fuselage.rotation.z = Math.PI / 2;
+  jetGroup.add(fuselage);
+  
+  // Wings
+  const wing = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.1, 3),
+    new THREE.MeshBasicMaterial({ color: 0xcc0000 })
+  );
+  jetGroup.add(wing);
+  
+  // Tail
+  const tail = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.8, 0.1),
+    new THREE.MeshBasicMaterial({ color: 0xcc0000 })
+  );
+  tail.position.x = -1.5;
+  jetGroup.add(tail);
+
+  jetModelTemplate = jetGroup;
+
+  // Create jet NPCs
+  for (let i = 0; i < JET_COUNT; i++) {
+    npcJets.push(createJetNPC(i));
+  }
+}
+
+function updateNPCJets(dt) {
+  const playerPos = vehicle.position;
+  const playerInTerritory = playerPos.distanceTo(TOWER_POS) < TERRITORY_RADIUS;
+
+  for (const jet of npcJets) {
+    if (!jet.alive) {
+      jet.respawnTimer -= dt;
+      if (jet.respawnTimer <= 0) {
+        jet.alive = true;
+        jet.health = JET_HEALTH;
+        if (jet.mesh) jet.mesh.visible = true;
+      }
+      continue;
+    }
+
+    if (!jet.mesh) continue;
+
+    // Find closest player in territory
+    let closestPlayer = null;
+    let closestDist = Infinity;
+    
+    if (playerInTerritory) {
+      const dist = playerPos.distanceTo(jet.mesh.position);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestPlayer = playerPos;
+      }
+    }
+
+    // Also check remote players
+    for (const [id, rp] of remotes) {
+      const remotePos = rp.curPos;
+      if (remotePos.distanceTo(TOWER_POS) < TERRITORY_RADIUS) {
+        const dist = remotePos.distanceTo(jet.mesh.position);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestPlayer = remotePos;
+        }
+      }
+    }
+
+    if (closestPlayer && closestDist < 300) {
+      // Pursue target
+      const dir = closestPlayer.clone().sub(jet.mesh.position).normalize();
+      jet.mesh.position.addScaledVector(dir, jet.speed * dt);
+      jet.mesh.lookAt(closestPlayer);
+      
+      // Check collision with player
+      if (closestDist < 5) {
+        // Damage player
+        if (vehicle.health > 0) {
+          vehicle.health -= 1;
+          hud.showHitFlash();
+          if (vehicle.health <= 0) {
+            vehicle.respawn();
+          }
+        }
+        // Take damage
+        jet.health -= 1;
+        if (jet.health <= 0) {
+          jet.alive = false;
+          jet.respawnTimer = RESPAWN_TIME;
+          if (jet.mesh) jet.mesh.visible = false;
+        }
+      }
+    } else {
+      // Patrol around tower
+      jet.patrolAngle += dt * 0.5;
+      const radius = 150;
+      const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
+      const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
+      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 20;
+      
+      const targetPos = new THREE.Vector3(patrolX, patrolY, patrolZ);
+      const dir = targetPos.sub(jet.mesh.position).normalize();
+      jet.mesh.position.addScaledVector(dir, jet.speed * dt * 0.5);
+      jet.mesh.lookAt(targetPos);
+    }
+  }
+}
+
 const edgeTags = new Map();
 const EDGE_MARGIN = 30;
 const tagProject = new THREE.Vector3();
@@ -1224,6 +1380,7 @@ function animate() {
   debris.update(dt);
   updateProjectiles(dt);
   updateWorld(world, dt);
+  updateNPCJets(dt);
 
   const others = Array.from(net.players.values()).filter((p) => p.id !== net.myId);
   minimap.update(vehicle, others);
