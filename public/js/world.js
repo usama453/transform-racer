@@ -1190,13 +1190,15 @@ export function updateWorld(world, dt) {
   if (world.megaTower) {
     const mt = world.megaTower;
     mt.spin.rotation.y += dt * 0.6;
-    mt.floatRing.rotation.z += dt * 0.3;
-    mt.beam.material.opacity = 0.08 + 0.06 * Math.sin(world.time * 1.5);
+    if (mt.floatRing) mt.floatRing.rotation.z += dt * 0.3;
+    if (mt.beam) mt.beam.material.opacity = 0.08 + 0.06 * Math.sin(world.time * 1.5);
     for (let i = 0; i < mt.rings.length; i++) {
       mt.rings[i].material.opacity = 0.6 + 0.25 * Math.sin(world.time * 2 + i * 0.8);
     }
-    for (let i = 0; i < mt.orbs.length; i++) {
-      mt.orbs[i].material.opacity = 0.6 + 0.4 * Math.sin(world.time * 3 + i * 0.6);
+    if (mt.orbs) {
+      for (let i = 0; i < mt.orbs.length; i++) {
+        mt.orbs[i].material.opacity = 0.6 + 0.4 * Math.sin(world.time * 3 + i * 0.6);
+      }
     }
   }
 }
