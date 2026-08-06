@@ -11,6 +11,9 @@ export class SoundManager {
     this.osc1 = null;
     this.osc2 = null;
     this.driftGain = null;
+    this.spatialSounds = new Map();
+    this._transformBuf = null;
+    this._transformLoading = false;
   }
 
   init() {
@@ -22,6 +25,7 @@ export class SoundManager {
     if (!AC) return;
     const ctx = new AC();
     this.ctx = ctx;
+    this.listener = ctx.listener;
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.85;
     this.master.connect(ctx.destination);
@@ -78,6 +82,20 @@ export class SoundManager {
     });
 
     this.engineReady = true;
+    // Preload transform.wav in background
+    this._preloadTransform();
+  }
+
+  _preloadTransform() {
+    if (this._transformLoading || this._transformBuf) return;
+    this._transformLoading = true;
+    fetch('/transform.wav').then(r => r.arrayBuffer()).then(buf => {
+      if (this.ctx) {
+        this.ctx.decodeAudioData(buf, (decoded) => {
+          this._transformBuf = decoded;
+        });
+      }
+    }).catch(() => {});
   }
 
   _noiseSource(gainNode, cb) {
@@ -245,23 +263,34 @@ export class SoundManager {
   }
 
   _playTransformSound(ctx, t) {
-    // load transform.wav from the public folder
-    const req = new XMLHttpRequest();
-    req.open('GET', '/transform.wav', true);
-    req.responseType = 'arraybuffer';
-    req.onload = () => {
-      if (req.status !== 200) return;
+    if (this._transformBuf) {
       const now = ctx.currentTime;
-      ctx.decodeAudioData(req.response, (buffer) => {
-        const src = ctx.createBufferSource();
-        src.buffer = buffer;
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(1.0, now);
-        src.connect(g).connect(this.master);
-        src.start(now);
-      }, () => {});
-    };
-    req.send();
+      const src = ctx.createBufferSource();
+      src.buffer = this._transformBuf;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(1.0, now);
+      src.connect(g).connect(this.master);
+      src.start(now);
+    } else {
+      // Fallback: load on demand
+      const req = new XMLHttpRequest();
+      req.open('GET', '/transform.wav', true);
+      req.responseType = 'arraybuffer';
+      req.onload = () => {
+        if (req.status !== 200) return;
+        const now = ctx.currentTime;
+        ctx.decodeAudioData(req.response, (buffer) => {
+          this._transformBuf = buffer;
+          const src = ctx.createBufferSource();
+          src.buffer = buffer;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(1.0, now);
+          src.connect(g).connect(this.master);
+          src.start(now);
+        }, () => {});
+      };
+      req.send();
+    }
   }
 
   _playTransformSoundCar(ctx, t) {
@@ -403,5 +432,79 @@ export class SoundManager {
 
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  updateListener(pos, yaw, pitch) {
+    if (!this.ctx || !this.listener) return;
+    const t = this.ctx.currentTime;
+    if (this.listener.positionX) {
+      this.listener.positionX.value = pos.x;
+      this.listener.positionY.value = pos.y;
+      this.listener.positionZ.value = pos.z;
+    } else if (this.listener.setPosition) {
+      this.listener.setPosition(pos.x, pos.y, pos.z);
+    }
+    const fx = Math.sin(yaw);
+    const fz = -Math.cos(yaw);
+    if (this.listener.forwardX) {
+      this.listener.forwardX.value = fx;
+      this.listener.forwardY.value = 0;
+      this.listener.forwardZ.value = fz;
+      this.listener.upX.value = 0;
+      this.listener.upY.value = 1;
+      this.listener.upZ.value = 0;
+    } else if (this.listener.setOrientation) {
+      this.listener.setOrientation(fx, 0, fz, 0, 1, 0);
+    }
+  }
+
+  updateSpatialSound(id, pos, mode, speed) {
+    if (!this.ctx) return;
+    let data = this.spatialSounds.get(id);
+    if (!data) {
+      const panner = this.ctx.createPanner();
+      panner.panningModel = 'HRTF';
+      panner.distanceModel = 'inverse';
+      panner.refDistance = 10;
+      panner.maxDistance = 500;
+      panner.rolloffFactor = 1.5;
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.06;
+      panner.connect(gain);
+      gain.connect(this.master);
+      data = { panner, gain };
+      this.spatialSounds.set(id, data);
+    }
+    const t = this.ctx.currentTime;
+    if (data.panner.positionX) {
+      data.panner.positionX.value = pos.x;
+      data.panner.positionY.value = pos.y;
+      data.panner.positionZ.value = pos.z;
+    } else if (data.panner.setPosition) {
+      data.panner.setPosition(pos.x, pos.y, pos.z);
+    }
+    const targetVol = mode === 'plane' ? Math.min(0.12, 0.02 + speed * 0.0008) : Math.min(0.06, speed * 0.0004);
+    data.gain.gain.setTargetAtTime(targetVol, t, 0.1);
+  }
+
+  removeSpatialSound(id) {
+    const data = this.spatialSounds.get(id);
+    if (data) {
+      data.panner.disconnect();
+      data.gain.disconnect();
+      this.spatialSounds.delete(id);
+    }
+  }
+
+  cleanupSpatialSounds(activeIds) {
+    for (const id of this.spatialSounds.keys()) {
+      if (!activeIds.has(id)) {
+        this.removeSpatialSound(id);
+      }
+    }
+  }
+
+  playSpatialEngine(id, pos, mode, speed) {
+    this.updateSpatialSound(id, pos, mode, speed);
   }
 }

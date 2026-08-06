@@ -229,6 +229,7 @@ function syncRemotes(dt) {
       scene.remove(rp.mesh);
       scene.remove(rp.label);
       scene.remove(rp.trail.line);
+      if (audio.removeSpatialSound) audio.removeSpatialSound(id);
       remotes.delete(id);
       continue;
     }
@@ -264,6 +265,10 @@ function syncRemotes(dt) {
     if (audio.updateSpatialSound) {
       audio.updateSpatialSound(id, rp.curPos, rp.mode, s.speed || 0);
     }
+  }
+  // Cleanup spatial sounds for disconnected players
+  if (audio.cleanupSpatialSounds) {
+    audio.cleanupSpatialSounds(new Set(remotes.keys()));
   }
 }
 
