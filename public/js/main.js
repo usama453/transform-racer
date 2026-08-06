@@ -105,11 +105,6 @@ let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 
-// Add bright spotlight on vehicle to make it stand out
-const vehicleLight = new THREE.PointLight(0x88ccff, 50, 50);
-vehicleLight.position.set(0, 5, 0);
-vehicleMesh.add(vehicleLight);
-
 // Load GLB models for bike (car mode) and jet (plane mode)
 let bikeModel = null;
 let jetModel = null;
@@ -131,6 +126,12 @@ gltfLoader.load('/bike.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
   bikeModel.position.y = 1.5; // Move up so it sits on ground
+  // Make materials flat/unlit
+  bikeModel.traverse((child) => {
+    if (child.isMesh && child.material) {
+      child.material = new THREE.MeshBasicMaterial({ color: child.material.color || 0xffffff });
+    }
+  });
   vehicleMesh.add(bikeModel);
   console.log('Bike loaded');
 });
@@ -150,8 +151,14 @@ gltfLoader.load('/jet.glb', (gltf) => {
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   jetModel.scale.setScalar(16 / maxDim);
-  jetModel.rotation.z = Math.PI; // Rotate 180 degrees to face forward
+  jetModel.rotation.x = Math.PI; // Rotate 180 degrees on X axis to face forward
   jetModel.position.y = 3; // Move up for plane height
+  // Make materials flat/unlit
+  jetModel.traverse((child) => {
+    if (child.isMesh && child.material) {
+      child.material = new THREE.MeshBasicMaterial({ color: child.material.color || 0xffffff });
+    }
+  });
   jetModel.visible = false; // Hidden by default (start in car mode)
   vehicleMesh.add(jetModel);
   console.log('Jet loaded');
