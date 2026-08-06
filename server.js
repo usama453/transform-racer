@@ -10,8 +10,6 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/lib', express.static(path.join(__dirname, 'node_modules/three/build')));
-app.use('/lib', express.static(path.join(__dirname, 'public/lib')));
 app.use('/libsio', express.static(path.join(__dirname, 'node_modules/socket.io/client-dist')));
 
 const WORLD_RADIUS = 9000;

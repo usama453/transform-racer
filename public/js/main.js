@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { Vehicle, PLANE_GROUND_Y, WORLD_RADIUS } from './vehicle.js';
 import { Input } from './input.js';
 import { Network } from './network.js';
@@ -92,43 +91,9 @@ function resizeBlurRT() {
 }
 resizeBlurRT();
 
-window.__log('3. renderer/scene/camera done');
 const world = createWorld(scene);
 world.camera = camera;
-window.__log('4. world created');
 
-// Load GLB models
-const gltfLoader = new GLTFLoader();
-let carModel = null;
-let planeModel = null;
-async function loadModels() {
-  try {
-    const carGltf = await gltfLoader.loadAsync('/car.glb');
-    carModel = carGltf.scene;
-    const box = new THREE.Box3().setFromObject(carModel);
-    const center = box.getCenter(new THREE.Vector3());
-    carModel.position.sub(center);
-    carModel.position.y += box.max.y - center.y;
-  } catch(e) { console.warn('car.glb failed to load', e); }
-  try {
-    const planeGltf = await gltfLoader.loadAsync('/plane.glb');
-    planeModel = planeGltf.scene;
-    const box = new THREE.Box3().setFromObject(planeModel);
-    const center = box.getCenter(new THREE.Vector3());
-    planeModel.position.sub(center);
-    planeModel.position.y += box.max.y - center.y;
-  } catch(e) { console.warn('plane.glb failed to load', e); }
-}
-loadModels();
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  resizeBlurRT();
-});
-
-window.__log('5. GLB loader created');
 const input = new Input();
 const net = new Network();
 const hud = new HUD(net);
@@ -139,8 +104,6 @@ window.__log('6. input/net/hud/vehicle created');
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 window.__log('7. vehicleMesh built');
-vehicleMesh.userData.carModel = carModel;
-vehicleMesh.userData.planeModel = planeModel;
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
 const soundBtn = document.getElementById('sound-toggle');
