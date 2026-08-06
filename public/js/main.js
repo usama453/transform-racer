@@ -1021,6 +1021,7 @@ function updateOwnVisual(dt) {
         .addScaledVector(fwd, -2.3)
         .addScaledVector(right, side);
       if (displayedMode === 'car') pos.y = 0.55;
+      if (displayedMode === 'plane') pos.y += 1.5;
       const vel = fwd.clone().multiplyScalar(-28).add(new THREE.Vector3(
         (Math.random() - 0.5) * 4, Math.random() * 3, (Math.random() - 0.5) * 4
       ));
