@@ -343,6 +343,11 @@ export class Vehicle {
 
     this.position.addScaledVector(this.velocity, dt);
 
+    // Check platform landing (tower top)
+    if (this.velocity.y <= 0) {
+      checkPlatformLanding(this);
+    }
+
     if (this.position.y < PLANE_GROUND_Y) {
       this.position.y = PLANE_GROUND_Y;
       if (this.velocity.y < -PLANE_BOUNCE_MIN) {
