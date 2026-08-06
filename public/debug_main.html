@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Main.js Debug</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; font-size: 13px; }
+    .step { margin: 3px 0; padding: 5px 8px; border: 1px solid #333; border-radius: 3px; }
+    .pass { border-color: #00ff88; background: rgba(0,255,136,0.1); }
+    .fail { border-color: #ff4444; background: rgba(255,68,68,0.1); color: #ff4444; }
+    .info { border-color: #00ccff; background: rgba(0,200,255,0.1); color: #00ccff; }
+    h1 { color: #fff; font-size: 16px; }
+    button { background: #00ccff; border: none; padding: 10px 20px; cursor: pointer; font-size: 16px; margin: 10px 0; }
+    #results { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Main.js Initialization Debug</h1>
+  <button onclick="runTest()">Run Test</button>
+  <div id="results"></div>
+
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    window.runTest = async function() {
+      const results = [];
+      function add(step, type, msg) {
+        results.push({ step, type, msg });
+        document.getElementById('results').innerHTML = results.map(r =>
+          `<div class="step ${r.type}">${r.step}: ${r.msg}</div>`
+        ).join('');
+      }
+
+      try {
+        add('1. Import THREE', 'info', 'loading...');
+        const THREE = await import('three');
+        add('1. Import THREE', 'pass', 'OK r' + THREE.REVISION);
+
+        add('2. Import Vehicle', 'info', 'loading...');
+        const { Vehicle } = await import('./js/vehicle.js');
+        add('2. Import Vehicle', 'pass', 'OK');
+
+        add('3. Import Input', 'info', 'loading...');
+        const { Input } = await import('./js/input.js');
+        add('3. Import Input', 'pass', 'OK');
+
+        add('4. Import Network', 'info', 'loading...');
+        const { Network } = await import('./js/network.js');
+        add('4. Import Network', 'pass', 'OK');
+
+        add('5. Import HUD', 'info', 'loading...');
+        const { HUD } = await import('./js/hud.js');
+        add('5. Import HUD', 'pass', 'OK');
+
+        add('6. Import world.js', 'info', 'loading...');
+        const worldMod = await import('./js/world.js');
+        add('6. Import world.js', 'pass', 'OK');
+
+        add('7. Import render.js', 'info', 'loading...');
+        const renderMod = await import('./js/render.js');
+        add('7. Import render.js', 'pass', 'OK');
+
+        add('8. Import audio.js', 'info', 'loading...');
+        const { SoundManager } = await import('./js/audio.js');
+        add('8. Import audio.js', 'pass', 'OK');
+
+        add('9. Import minimap.js', 'info', 'loading...');
+        const { Minimap } = await import('./js/minimap.js');
+        add('9. Import minimap.js', 'pass', 'OK');
+
+        add('10. Create renderer', 'info', 'creating...');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        add('10. Create renderer', 'pass', 'OK');
+
+        add('11. Create scene', 'info', 'creating...');
+        const scene = new THREE.Scene();
+        add('11. Create scene', 'pass', 'OK');
+
+        add('12. Create camera', 'info', 'creating...');
+        const camera = new THREE.PerspectiveCamera(62, 1920/1080, 0.1, 15000);
+        add('12. Create camera', 'pass', 'OK');
+
+        add('13. createWorld()', 'info', 'calling...');
+        const world = worldMod.createWorld(scene);
+        add('13. createWorld()', 'pass', 'OK');
+
+        add('14. Create Input', 'info', 'creating...');
+        const input = new Input();
+        add('14. Create Input', 'pass', 'OK');
+
+        add('15. Create Network', 'info', 'creating...');
+        const net = new Network();
+        add('15. Create Network', 'pass', 'OK');
+
+        add('16. Create HUD', 'info', 'creating...');
+        const hud = new HUD(net);
+        add('16. Create HUD', 'pass', 'OK');
+
+        add('17. Create Vehicle', 'info', 'creating...');
+        const vehicle = new Vehicle(0, 0);
+        add('17. Create Vehicle', 'pass', 'OK');
+
+        add('18. buildVehicle()', 'info', 'calling...');
+        const vehicleMesh = renderMod.buildVehicle('#33ccff');
+        add('18. buildVehicle()', 'pass', 'OK');
+
+        add('19. Create SoundManager', 'info', 'creating...');
+        const audio = new SoundManager();
+        add('19. Create SoundManager', 'pass', 'OK');
+
+        add('20. Create Minimap', 'info', 'creating...');
+        const minimap = new Minimap(document.getElementById('minimap') || {});
+        add('20. Create Minimap', 'pass', 'OK');
+
+        add('21. net.connect()', 'info', 'calling...');
+        net.onConnected = () => add('22. onConnected', 'pass', 'Connected!');
+        net.connect();
+        add('21. net.connect()', 'pass', 'returned');
+
+      } catch (e) {
+        add('ERROR', 'fail', e.message);
+        add('STACK', 'fail', e.stack.split('\n').slice(0, 3).join(' | '));
+      }
+    };
+  </script>
+</body>
+</html>
