@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bike Model Test</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #1a1a2e; }
+    canvas { display: block; }
+    #info { position: absolute; top: 10px; left: 10px; color: #00ff88; font-family: monospace; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="info">Loading model...</div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const info = document.getElementById('info');
+    
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10000);
+    camera.position.set(3, 2, 3);
+    
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+    
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    
+    const grid = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+    scene.add(grid);
+    
+    info.textContent = 'Loading bike.glb...';
+    const loader = new GLTFLoader();
+    
+    loader.load(
+      '/bike.glb',
+      (gltf) => {
+        const bike = gltf.scene;
+        
+        // Center the geometry
+        const box = new THREE.Box3().setFromObject(bike);
+        const center = box.getCenter(new THREE.Vector3());
+        
+        bike.traverse((child) => {
+          if (child.isMesh) {
+            child.geometry.translate(-center.x, -center.y, -center.z);
+          }
+        });
+        bike.position.set(0, 0, 0);
+        
+        // Get size and scale
+        const newBox = new THREE.Box3().setFromObject(bike);
+        const size = newBox.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 3 / maxDim;
+        bike.scale.setScalar(scale);
+        
+        // Add helpers
+        const bboxHelper = new THREE.BoxHelper(bike, 0xffff00);
+        scene.add(bboxHelper);
+        const axes = new THREE.AxesHelper(2);
+        scene.add(axes);
+        
+        scene.add(bike);
+        
+        info.textContent = `Loaded! Size: ${size.x.toFixed(1)} x ${size.y.toFixed(1)} x ${size.z.toFixed(1)}`;
+        console.log('Bike loaded!', size.x.toFixed(1), size.y.toFixed(1), size.z.toFixed(1));
+      },
+      (progress) => {
+        const percent = (progress.loaded / progress.total * 100).toFixed(0);
+        info.textContent = `Loading: ${percent}%`;
+      },
+      (error) => {
+        info.textContent = 'Error loading model';
+        console.error('Load error:', error);
+      }
+    );
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+    
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
