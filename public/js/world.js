@@ -692,20 +692,7 @@ function buildMegaTower(scene) {
   for (let i = 0; i < 6; i++) layouts.push({ a: (i / 6) * Math.PI * 2, r: 45 });
   for (let i = 0; i < 12; i++) layouts.push({ a: (i / 12) * Math.PI * 2 + 0.25, r: 96 });
   let si = 0;
-  for (const l of layouts) {
-    si++;
-    const w = 6 + ((si * 37) % 7);
-    const d = 6 + ((si * 53) % 7);
-    const h = 40 + ((si * 89) % 130);
-  // No buildings on deck (removed pillars/structures)
-
-  // No orbs on deck
-
-  // No floatRing above deck
-
-  // No tip above deck
-
-  // No beam above deck
+  // Buildings on deck removed
 
   scene.add(g);
   return { towerGroup: g, rings, spin, orbs, beam, floatRing };
