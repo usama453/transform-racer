@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Connection Diagnostics</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; }
+    .step { margin: 10px 0; padding: 10px; border: 1px solid #333; border-radius: 5px; }
+    .pass { border-color: #00ff88; background: rgba(0,255,136,0.1); }
+    .fail { border-color: #ff4444; background: rgba(255,68,68,0.1); color: #ff4444; }
+    .pending { border-color: #ffaa00; background: rgba(255,170,0,0.1); color: #ffaa00; }
+    h1 { color: #fff; }
+    button { background: #00ccff; border: none; padding: 10px 20px; cursor: pointer; font-size: 16px; margin: 10px 0; }
+    button:hover { background: #0099cc; }
+    #log { margin-top: 20px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Connection Diagnostics</h1>
+  <button onclick="runDiagnostics()">Run Diagnostics</button>
+  <div id="results"></div>
+  <div id="log"></div>
+
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script>
+    let results = [];
+    let log = [];
+
+    function addResult(step, passed, detail) {
+      results.push({ step, passed, detail });
+    }
+
+    function addLog(msg) {
+      log.push(msg);
+    }
+
+    async function runDiagnostics() {
+      results = [];
+      log = [];
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('log').innerHTML = '';
+
+      // Step 1: Check socket.io loaded
+      addResult('Socket.io loaded', typeof io === 'function', `typeof io = ${typeof io}`);
+
+      // Step 2: Check importmap works for three
+      try {
+        const three = await import('three');
+        addResult('Three.js import', true, `THREE.REVISION = ${three.REVISION}`);
+      } catch (e) {
+        addResult('Three.js import', false, e.message);
+      }
+
+      // Step 3: Check GLTFLoader import
+      try {
+        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+        addResult('GLTFLoader import', true, 'GLTFLoader loaded');
+      } catch (e) {
+        addResult('GLTFLoader import', false, e.message);
+      }
+
+      // Step 4: Check BufferGeometryUtils import (dependency of GLTFLoader)
+      try {
+        const geom = await import('three/addons/utils/BufferGeometryUtils.js');
+        addResult('BufferGeometryUtils import', true, 'BufferGeometryUtils loaded');
+      } catch (e) {
+        addResult('BufferGeometryUtils import', false, e.message);
+      }
+
+      // Step 5: Try socket.io connection
+      addLog('Attempting socket.io connection...');
+      const socket = io();
+
+      socket.on('connect', () => {
+        addResult('Socket.io connect', true, `Connected! ID = ${socket.id}`);
+        updateDisplay();
+      });
+
+      socket.on('connect_error', (err) => {
+        addResult('Socket.io connect', false, `connect_error: ${err.message}`);
+        updateDisplay();
+      });
+
+      socket.on('disconnect', (reason) => {
+        addLog(`Disconnected: ${reason}`);
+        updateDisplay();
+      });
+
+      // Wait 5 seconds to see if connection succeeds
+      setTimeout(() => {
+        if (!socket.connected) {
+          addResult('Socket.io connect', false, 'Timeout - not connected after 5s');
+          updateDisplay();
+        }
+      }, 5000);
+
+      // Step 6: Check if server responds to HTTP
+      try {
+        const r = await fetch('/');
+        addResult('HTTP server response', r.status === 200, `Status: ${r.status}`);
+      } catch (e) {
+        addResult('HTTP server response', false, e.message);
+      }
+
+      // Step 7: Check if main.js can be loaded
+      try {
+        const r = await fetch('/js/main.js');
+        addResult('main.js accessible', r.status === 200, `Status: ${r.status}`);
+      } catch (e) {
+        addResult('main.js accessible', false, e.message);
+      }
+
+      updateDisplay();
+    }
+
+    function updateDisplay() {
+      const div = document.getElementById('results');
+      div.innerHTML = results.map(r => `
+        <div class="step ${r.passed ? 'pass' : 'fail'}">
+          <strong>${r.passed ? '✓' : '✗'} ${r.step}</strong>
+          <div>${r.detail}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('log').textContent = log.join('\n');
+    }
+  </script>
+</body>
+</html>
