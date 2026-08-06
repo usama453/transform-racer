@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Game Connection Debug</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; font-size: 14px; }
+    .step { margin: 5px 0; padding: 8px; border: 1px solid #333; border-radius: 5px; }
+    .pass { border-color: #00ff88; background: rgba(0,255,136,0.1); }
+    .fail { border-color: #ff4444; background: rgba(255,68,68,0.1); color: #ff4444; }
+    .info { border-color: #00ccff; background: rgba(0,200,255,0.1); color: #00ccff; }
+    h1 { color: #fff; font-size: 18px; }
+    button { background: #00ccff; border: none; padding: 10px 20px; cursor: pointer; font-size: 16px; margin: 10px 0; }
+    #log { margin-top: 20px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; background: #000; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Game Connection Debug</h1>
+  <button onclick="runTest()">Run Test</button>
+  <div id="results"></div>
+  <div id="log"></div>
+
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    window.runTest = async function() {
+      const results = [];
+      const log = [];
+
+      function add(step, type, msg) {
+        results.push({ step, type, msg });
+        log.push(`[${type.toUpperCase()}] ${step}: ${msg}`);
+      }
+
+      function update() {
+        document.getElementById('results').innerHTML = results.map(r => `
+          <div class="step ${r.type}">${r.step}: ${r.msg}</div>
+        `).join('');
+        document.getElementById('log').textContent = log.join('\n');
+      }
+
+      try {
+        // Import main.js modules
+        add('Import modules', 'info', 'Loading...');
+        update();
+
+        const { Network } = await import('./js/network.js');
+        add('Network import', 'pass', 'OK');
+
+        // Create Network instance
+        const net = new Network();
+        add('Network create', 'pass', 'OK');
+
+        // Check if socket connects
+        net.onConnected = () => {
+          add('onConnected callback', 'pass', 'Called! connected=' + net.connected);
+          update();
+        };
+
+        net.onDisconnected = () => {
+          add('onDisconnected callback', 'fail', 'Called!');
+          update();
+        };
+
+        // Call connect like main.js does
+        add('net.connect()', 'info', 'Calling...');
+        net.connect();
+        add('net.connect() returned', 'pass', 'Function returned');
+
+        // Wait and check connection status
+        await new Promise(r => setTimeout(r, 2000));
+        add('After 2s', net.connected ? 'pass' : 'fail', 'net.connected = ' + net.connected);
+
+        // Check if socket exists
+        add('socket exists', net.socket ? 'pass' : 'fail', 'net.socket = ' + (net.socket ? 'exists' : 'null'));
+
+        if (net.socket) {
+          add('socket.id', net.socket.id ? 'pass' : 'info', 'id = ' + net.socket.id);
+          add('socket.connected', net.socket.connected ? 'pass' : 'fail', 'connected = ' + net.socket.connected);
+        }
+
+        // Check if 'init' event is received
+        net.socket.on('init', (data) => {
+          add('init event', 'pass', 'Received! id=' + data.id + ' players=' + data.players.length);
+          update();
+        });
+
+        await new Promise(r => setTimeout(r, 2000));
+        add('Final check', net.connected ? 'pass' : 'fail', 'net.connected = ' + net.connected);
+
+      } catch (e) {
+        add('ERROR', 'fail', e.message + '\n' + e.stack);
+      }
+
+      update();
+    };
+  </script>
+</body>
+</html>
