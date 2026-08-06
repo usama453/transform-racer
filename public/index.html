@@ -37,15 +37,11 @@
       </div>
     </div>
   </div>
-
   <!-- HUD -->
   <div id="hud">
-    <div id="mode-indicator"><div class="mode-label">MODE</div><div id="mode-value">CAR</div></div>
-    <div id="player-name">Pilot</div>
     <div id="players-online">0 online</div>
     <button id="sound-toggle" title="Toggle sound (M)">&#128266;</button>
-    <button id="motionblur-toggle" class="on" title="Toggle motion blur (B)">BLUR</button>
-    <button id="screenshake-toggle" class="on" title="Toggle screen shake (N)">SHAKE</button>
+    <button id="screenshake-toggle" class="on hidden" title="Toggle screen shake (N)" style="display:none">SHAKE</button>
     <div id="speedometer">
       <div id="speed-num">0</div>
       <div id="speed-unit">km/h</div>
@@ -62,17 +58,15 @@
     <canvas id="minimap" width="150" height="150"></canvas>
     <div id="transform-hint">Press <b>F</b> to transform</div>
     <div id="warning" class="hidden"></div>
-
+    <div id="spawn-capture" class="hidden"></div>
     <div id="edge-tags"></div>
     <div id="kill-feed"></div>
     <div id="hit-flash"></div>
-
     <div id="chat-box">
       <div id="chat-log"></div>
       <input id="chat-input" type="text" placeholder="Press Enter to chat..." autocomplete="off" maxlength="200" />
     </div>
   </div>
-
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

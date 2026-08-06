@@ -369,7 +369,7 @@ export class Vehicle {
 
   respawn() {
     const angle = Math.random() * Math.PI * 2;
-    const radius = 80 + Math.random() * 160;
+    const radius = 3400 + Math.random() * 300;
     this.position.set(Math.cos(angle) * radius, CAR_BODY_Y, Math.sin(angle) * radius);
     this.velocity.set(0, 0, 0);
     this.yaw = Math.atan2(-Math.sin(angle), -Math.cos(angle));

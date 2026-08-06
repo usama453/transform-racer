@@ -117,25 +117,25 @@ export class SoundManager {
     const overkick = overboost ? 60 : 0;
 
     if (inCar) {
-      // piston engine: low saw + square sub + sine sub-bass
+      // piston engine: low saw + square sub + sine sub-bass (reduced volume)
       const freq = 65 + speed * 3.4 + boostKick + overkick;
       this.osc1.frequency.setTargetAtTime(freq, t, 0.06);
       this.osc2.frequency.setTargetAtTime(freq * 0.5, t, 0.06);
-      this.osc2Gain.gain.setTargetAtTime(0.85, t, 0.06);
+      this.osc2Gain.gain.setTargetAtTime(0.035, t, 0.06);
       this.osc3.frequency.setTargetAtTime(freq * 0.25, t, 0.06);
-      this.osc3Gain.gain.setTargetAtTime(0.55, t, 0.06);
+      this.osc3Gain.gain.setTargetAtTime(0.02, t, 0.06);
       this.engineFilter.type = 'lowpass';
       this.engineFilter.frequency.setTargetAtTime(220 + speed * 6 + (nitroActive ? 320 : 0) + overkick * 2.5, t, 0.08);
       this.engineFilter.Q.setTargetAtTime(2.5, t, 0.08);
     } else {
-      // jet: high whine + rumble + open airy filter
+      // jet: high whine + rumble (reduced volume)
       const whine = 300 + speed * 2.1 + boostKick + overkick * 1.4;
       const rumb = 70 + speed * 1.1;
       this.osc1.frequency.setTargetAtTime(rumb, t, 0.06);
       this.osc2.frequency.setTargetAtTime(rumb * 0.5, t, 0.06);
-      this.osc2Gain.gain.setTargetAtTime(0.18, t, 0.06);
+      this.osc2Gain.gain.setTargetAtTime(0.015, t, 0.06);
       this.osc3.frequency.setTargetAtTime(whine, t, 0.05);
-      this.osc3Gain.gain.setTargetAtTime(0.22 + speed / 1200, t, 0.05);
+      this.osc3Gain.gain.setTargetAtTime(0.015, t, 0.05);
       this.engineFilter.type = 'lowpass';
       this.engineFilter.frequency.setTargetAtTime(900 + speed * 9 + (nitroActive ? 500 : 0) + overkick * 4, t, 0.08);
       this.engineFilter.Q.setTargetAtTime(1, t, 0.08);
@@ -143,13 +143,13 @@ export class SoundManager {
 
     let level = 0.12;
     if (inCar) {
-      level = 0.08 + Math.abs(throttle) * 0.1 + Math.min(0.1, speed / 800);
+      level = 0.005 + Math.abs(throttle) * 0.008 + Math.min(0.008, speed / 800);
     } else {
-      level = 0.14 + speed / 600;
+      level = Math.min(0.06, 0.01 + speed / 4800);
     }
     this.engineGain.gain.setTargetAtTime(level, t, 0.08);
 
-    const air = inCar ? Math.min(0.3, (speed / 140) * 0.28) : Math.min(0.4, 0.12 + speed / 400);
+    const air = inCar ? Math.min(0.15, (speed / 140) * 0.14) : Math.min(0.15, 0.05 + speed / 800);
     this.airGain.gain.setTargetAtTime(air, t, 0.1);
 
     // boost whoosh edge
@@ -211,30 +211,71 @@ export class SoundManager {
     if (!ctx) return;
     const t = ctx.currentTime;
     const up = nextMode === 'plane';
+
+    if (up) {
+      this._playTransformSound(ctx, t);
+    } else {
+      this._playTransformSoundCar(ctx, t);
+    }
+
+    if (!up) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.exponentialRampToValueAtTime(160, t + 0.55);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.14, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      osc.connect(g).connect(this.master);
+      osc.start(t);
+      osc.stop(t + 0.65);
+
+      // mechanical clunk
+      const clunk = ctx.createOscillator();
+      clunk.type = 'triangle';
+      clunk.frequency.setValueAtTime(120, t + 0.05);
+      clunk.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+      const cg = ctx.createGain();
+      cg.gain.setValueAtTime(0.12, t + 0.05);
+      cg.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      clunk.connect(cg).connect(this.master);
+      clunk.start(t + 0.05);
+      clunk.stop(t + 0.25);
+    }
+  }
+
+  _playTransformSound(ctx, t) {
+    // load transform.wav from the public folder
+    const req = new XMLHttpRequest();
+    req.open('GET', '/transform.wav', true);
+    req.responseType = 'arraybuffer';
+    req.onload = () => {
+      if (req.status !== 200) return;
+      const now = ctx.currentTime;
+      ctx.decodeAudioData(req.response, (buffer) => {
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(1.0, now);
+        src.connect(g).connect(this.master);
+        src.start(now);
+      }, () => {});
+    };
+    req.send();
+  }
+
+  _playTransformSoundCar(ctx, t) {
+    // mechanical transformation sound for plane->car
     const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    const startF = up ? 140 : 600;
-    const endF = up ? 900 : 160;
-    osc.frequency.setValueAtTime(startF, t);
-    osc.frequency.exponentialRampToValueAtTime(endF, t + 0.55);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(200, t + 0.4);
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.14, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
     osc.connect(g).connect(this.master);
     osc.start(t);
-    osc.stop(t + 0.65);
-
-    // mechanical clunk
-    const clunk = ctx.createOscillator();
-    clunk.type = 'triangle';
-    clunk.frequency.setValueAtTime(120, t + 0.05);
-    clunk.frequency.exponentialRampToValueAtTime(60, t + 0.12);
-    const cg = ctx.createGain();
-    cg.gain.setValueAtTime(0.12, t + 0.05);
-    cg.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    clunk.connect(cg).connect(this.master);
-    clunk.start(t + 0.05);
-    clunk.stop(t + 0.25);
+    osc.stop(t + 0.55);
   }
 
   boomSfx() {

@@ -24,8 +24,9 @@ renderer.domElement.style.outline = 'none';
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 4000);
-camera.position.set(10, 6, 12);
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 15000);
+camera.position.set(3500, 60, 3500);
+camera.lookAt(0, 0, 0);
 
 // radial motion blur post-process pass
 const drawBuf = new THREE.Vector2();
@@ -103,14 +104,14 @@ const net = new Network();
 const hud = new HUD(net);
 const vehicle = new Vehicle(0, 0);
 let rampJumpCount = 0;
+
+
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 const audio = new SoundManager();
 const minimap = new Minimap(document.getElementById('minimap'));
 const soundBtn = document.getElementById('sound-toggle');
-const blurBtn = document.getElementById('motionblur-toggle');
 const shakeBtn = document.getElementById('screenshake-toggle');
-let motionBlurOn = true;
 let screenShakeOn = true;
 let shake = 0;
 
@@ -152,21 +153,21 @@ const remotes = new Map();
 
 function makeLabel(name, color) {
   const measure = document.createElement('canvas').getContext('2d');
-  measure.font = 'bold 34px Segoe UI, sans-serif';
+  measure.font = 'bold 18px Segoe UI, sans-serif';
   const textW = Math.ceil(measure.measureText(name).width);
   const W = Math.max(120, textW + 36);
   const canvas = document.createElement('canvas');
   canvas.width = W;
-  canvas.height = 64;
+  canvas.height = 36;
   const ctx = canvas.getContext('2d');
-  ctx.font = 'bold 34px Segoe UI, sans-serif';
+  ctx.font = 'bold 18px Segoe UI, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineWidth = 6;
   ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-  ctx.strokeText(name, W / 2, 32);
+  ctx.strokeText(name, W / 2, 18);
   ctx.fillStyle = color;
-  ctx.fillText(name, W / 2, 32);
+  ctx.fillText(name, W / 2, 18);
   const tex = new THREE.CanvasTexture(canvas);
   const mat = new THREE.SpriteMaterial({
     map: tex, transparent: true, depthWrite: false,
@@ -220,7 +221,7 @@ function syncRemotes(dt) {
     rp.trail.push(rp.curPos);
 
     rp.label.position.copy(rp.curPos);
-    rp.label.position.y = rp.mode === 'plane' ? 7.0 : 5.6;
+    rp.label.position.y += rp.mode === 'plane' ? 11.0 : 9.0;
     rp.label.material.opacity = labelOpacity(rp.curPos.distanceTo(camera.position));
     sizeLabel(rp.label);
 
@@ -265,6 +266,16 @@ function collidePlayers() {
     rp.curPos.z -= nz * pen;
     rp.targetPos.x -= nx * pen * 0.5;
     rp.targetPos.z -= nz * pen * 0.5;
+
+    // push the other player away with a percentage of our speed (after nudge so it isn't undone)
+    const pushStrength = Math.min(Math.abs(vn) * 0.03, 10);
+    const pushX = nx * pushStrength;
+    const pushZ = nz * pushStrength;
+    rp.curPos.x += pushX;
+    rp.curPos.z += pushZ;
+    rp.targetPos.x += pushX;
+    rp.targetPos.z += pushZ;
+    net.sendHitPlayer(id, nx, nz, Math.abs(vn));
   }
   return impact;
 }
@@ -416,7 +427,7 @@ function spawnBuildingDebris(b) {
 }
 
 function createTrail(scene, colorHex) {
-  const N = 20;
+  const N = 40;
   const posArr = new Float32Array(N * 3);
   const colArr = new Float32Array(N * 3);
   const geo = new THREE.BufferGeometry();
@@ -424,7 +435,7 @@ function createTrail(scene, colorHex) {
   geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
   geo.setDrawRange(0, 0);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0.9,
+    vertexColors: true, transparent: true, opacity: 1.0,
     blending: THREE.AdditiveBlending, depthWrite: false
   }));
   line.frustumCulled = false;
@@ -435,7 +446,7 @@ function createTrail(scene, colorHex) {
   return {
     line,
     push(p) {
-      if (last && p.distanceTo(last) < 0.6) return;
+      if (last && p.distanceTo(last) < 0.3) return;
       last = p.clone();
       buf.push(last);
       if (buf.length > N) buf.shift();
@@ -616,6 +627,15 @@ net.onBreak = (data) => {
   breakBuildingByIdx(data.idx);
 };
 
+net.onPlayerPushed = (data) => {
+  const rp = remotes.get(data.id);
+  if (!rp) return;
+  rp.curPos.x += data.pushX;
+  rp.curPos.z += data.pushZ;
+  rp.targetPos.x += data.pushX;
+  rp.targetPos.z += data.pushZ;
+};
+
 const lookTarget = new THREE.Vector3();
 const fwdTmp = new THREE.Vector3();
 
@@ -693,7 +713,7 @@ input.onTransform = () => {
   if (!joined) return;
   vehicle.transform();
   audio.transform(vehicle.nextMode);
-  shake = Math.min(shake + 0.3, 1);
+  shake = Math.min(shake + (vehicle.nextMode === 'plane' ? 0.8 : 0.3), 1);
   net.sendTransform(vehicle.nextMode);
 };
 
@@ -709,6 +729,19 @@ input.onMute = () => {
 
 input.onDoubleShift = () => {
   if (joined) vehicle.activateOverboost();
+};
+
+input.onCaptureSpawn = () => {
+  if (!joined) return;
+  const yawDeg = Math.round(vehicle.yaw * 180 / Math.PI);
+  const info = `SPAWN_X=${Math.round(vehicle.position.x)} SPAWN_Z=${Math.round(vehicle.position.z)} SPAWN_YAW=${yawDeg}`;
+  navigator.clipboard.writeText(info).then(() => {
+    console.log('Spawn captured:', info);
+    const el = document.getElementById('spawn-capture');
+    if (el) { el.textContent = info; el.classList.remove('hidden'); setTimeout(() => el.classList.add('hidden'), 4000); }
+  }).catch(() => {
+    console.log('Spawn position:', info);
+  });
 };
 
 input.onShoot = () => {
@@ -773,27 +806,16 @@ soundBtn.addEventListener('click', () => {
   soundBtn.blur();
 });
 
-function setMotionBlur(on) {
-  motionBlurOn = on;
-  blurBtn.classList.toggle('on', on);
-}
+function setMotionBlur(on) { }
 
 function setScreenShake(on) {
-  screenShakeOn = on;
-  shakeBtn.classList.toggle('on', on);
   if (!on) shake = 0;
 }
 
-blurBtn.addEventListener('click', () => {
-  setMotionBlur(!motionBlurOn);
-  blurBtn.blur();
-});
 shakeBtn.addEventListener('click', () => {
   setScreenShake(!screenShakeOn);
   shakeBtn.blur();
 });
-input.onMotionBlur = () => setMotionBlur(!motionBlurOn);
-input.onScreenShake = () => setScreenShake(!screenShakeOn);
 
 function updateOwnVisual(dt) {
   vehicleMesh.position.copy(vehicle.position);
@@ -848,11 +870,11 @@ function updateOwnVisual(dt) {
       const pos = vehicle.position.clone()
         .addScaledVector(fwd, -2.3)
         .addScaledVector(right, side);
-      pos.y = displayedMode === 'plane' ? 0.62 : 0.55;
-      const vel = fwd.clone().multiplyScalar(-14).add(new THREE.Vector3(
-        (Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3
+      if (displayedMode === 'car') pos.y = 0.55;
+      const vel = fwd.clone().multiplyScalar(-28).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 4, Math.random() * 3, (Math.random() - 0.5) * 4
       ));
-      particles.spawn(pos, vel, 0.9, 0.5);
+      particles.spawn(pos, vel, 1.8, 0.5);
     }
   }
 }
@@ -983,6 +1005,8 @@ function animate() {
       vehicle.position.set(me.x, me.y, me.z);
       vehicle.yaw = me.yaw;
       spawnSet = true;
+      camera.position.set(vehicle.position.x, vehicle.position.y + 20, vehicle.position.z);
+      lookTarget.copy(vehicle.position);
     }
   }
 
@@ -1078,7 +1102,7 @@ function animate() {
   const blurScale = vehicle.mode === 'plane' ? 1.3 : 0.7;
   const blurAmt = Math.min(0.03, Math.max(0, blurBase * blurScale));
 
-  if (motionBlurOn && blurAmt > 0.01) {
+  if (blurAmt > 0.01) {
     renderer.setRenderTarget(blurRT);
     renderer.render(scene, camera);
     renderer.setRenderTarget(null);

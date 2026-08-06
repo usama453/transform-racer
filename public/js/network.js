@@ -13,6 +13,7 @@ export class Network {
     this.onProjectileRemove = null;
     this.onPlayerRespawned = null;
     this.onBreak = null;
+    this.onPlayerPushed = null;
     this.lastSent = 0;
     this.sendInterval = 50;
   }
@@ -135,5 +136,9 @@ export class Network {
 
   sendBreak(idx) {
     this.socket.emit('break', { idx });
+  }
+
+  sendHitPlayer(targetId, pushX, pushZ, speed) {
+    this.socket.emit('hitPlayer', { targetId, pushX, pushZ, speed });
   }
 }

@@ -6,7 +6,8 @@ export class Input {
     this.onChatOpen = null;
     this.onCameraToggle = null;
     this.onDoubleShift = null;
-    this.onShoot = null;
+     this.onShoot = null;
+    this.onCaptureSpawn = null;
     this.joined = false;
     this.lastShiftDown = 0;
     this._shiftArmed = false;
@@ -52,14 +53,14 @@ export class Input {
       if (k === 'm') {
         if (this.onMute) this.onMute();
       }
-      if (k === 'b') {
-        if (this.onMotionBlur) this.onMotionBlur();
-      }
       if (k === 'n') {
         if (this.onScreenShake) this.onScreenShake();
       }
       if (k === 'g' && this.joined) {
         if (this.onShoot) this.onShoot();
+      }
+      if (k === 'f8') {
+        if (this.onCaptureSpawn) this.onCaptureSpawn();
       }
       if (k === 'enter' && this.onChatOpen) {
         this.onChatOpen();

@@ -32,14 +32,56 @@ let colorIdx = 0;
 const projectiles = [];
 let projectileId = 0;
 
+// Manual spawn override via env vars:
+// SPAWN_X, SPAWN_Z, SPAWN_YAW (degrees) - if set, all players spawn at this location
+// SPAWN_Y (optional, default 1) - height
+// Example: SPAWN_X=3500 SPAWN_Z=100 SPAWN_YAW=180 node server.js
+const SPAWN_OVERRIDE = {
+  x: parseFloat(process.env.SPAWN_X),
+  z: parseFloat(process.env.SPAWN_Z),
+  yawDeg: parseFloat(process.env.SPAWN_YAW),
+  y: parseFloat(process.env.SPAWN_Y)
+};
+const hasSpawnOverride = !isNaN(SPAWN_OVERRIDE.x) && !isNaN(SPAWN_OVERRIDE.z);
+
 function spawnPoint() {
+  // use manual override if configured
+  if (hasSpawnOverride) {
+    return {
+      x: SPAWN_OVERRIDE.x,
+      y: isNaN(SPAWN_OVERRIDE.y) ? 1 : SPAWN_OVERRIDE.y,
+      z: SPAWN_OVERRIDE.z,
+      yaw: isNaN(SPAWN_OVERRIDE.yawDeg) ? 0 : SPAWN_OVERRIDE.yawDeg * Math.PI / 180
+    };
+  }
+
   const angle = Math.random() * Math.PI * 2;
-  const radius = 80 + Math.random() * 160;
+  // spawn outside the building zone (city extends to ±3120) so players
+  // see the city sprawled out ahead of them, facing toward the center
+  const radius = 3400 + Math.random() * 300;
   return {
     x: Math.cos(angle) * radius,
     y: 1,
     z: Math.sin(angle) * radius,
     yaw: Math.atan2(-Math.sin(angle), -Math.cos(angle))
+  };
+}
+
+// hardcoded spawn capture (set via F8 in-game):
+const HARDCODED_SPAWN = {
+  x: -5512,
+  z: -796,
+  yawDeg: 264,
+  y: 1
+};
+const useHardcodedSpawn = true;
+
+function hardcodedSpawnPoint() {
+  return {
+    x: HARDCODED_SPAWN.x,
+    y: HARDCODED_SPAWN.y,
+    z: HARDCODED_SPAWN.z,
+    yaw: HARDCODED_SPAWN.yawDeg * Math.PI / 180
   };
 }
 
@@ -50,7 +92,7 @@ function sanitizeFloat(v, min, max, fallback) {
 }
 
 function createPlayer(socket) {
-  const spawn = spawnPoint();
+  const spawn = useHardcodedSpawn ? hardcodedSpawnPoint() : spawnPoint();
   const color = COLORS[colorIdx % COLORS.length];
   colorIdx++;
   const player = {
@@ -139,7 +181,7 @@ function updateProjectiles(dt) {
         });
 
         if (killed) {
-          const spawn = spawnPoint();
+          const spawn = useHardcodedSpawn ? hardcodedSpawnPoint() : spawnPoint();
           player.x = spawn.x;
           player.y = spawn.y;
           player.z = spawn.z;
@@ -296,6 +338,27 @@ io.on('connection', (socket) => {
     const idx = Number(data && data.idx);
     if (!Number.isInteger(idx) || idx < 0 || idx > 30000) return;
     socket.broadcast.emit('break', { idx });
+  });
+
+  socket.on('hitPlayer', (data) => {
+    if (!data || typeof data !== 'object') return;
+    const targetId = data.targetId;
+    const pushX = sanitizeFloat(data.pushX, -500, 500, 0);
+    const pushZ = sanitizeFloat(data.pushZ, -500, 500, 0);
+    const speed = sanitizeFloat(data.speed, 0, 500, 0);
+    if (!targetId || targetId === socket.id) return;
+    const target = players.get(targetId);
+    if (!target) return;
+    const pushStrength = Math.min(speed * 0.015, 8);
+    target.x += pushX * pushStrength;
+    target.z += pushZ * pushStrength;
+    target.x = Math.max(-WORLD_RADIUS, Math.min(WORLD_RADIUS, target.x));
+    target.z = Math.max(-WORLD_RADIUS, Math.min(WORLD_RADIUS, target.z));
+    socket.broadcast.emit('playerPushed', {
+      id: targetId,
+      x: target.x, z: target.z,
+      pushX: pushX * pushStrength, pushZ: pushZ * pushStrength
+    });
   });
 
   socket.on('disconnect', () => {

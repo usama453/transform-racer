@@ -3,7 +3,6 @@ const $ = (id) => document.getElementById(id);
 export class HUD {
   constructor(network) {
     this.network = network;
-    this.modeEl = $('mode-value');
     this.speedEl = $('speed-num');
     this.nitroFill = $('nitro-fill');
     this.nitroLabel = document.querySelector('.nitro-label');
@@ -24,7 +23,6 @@ export class HUD {
 
     this.lastSpeed = -1;
     this.lastNitro = -1;
-    this.lastMode = '';
     this.lastCount = -1;
     this.lastOverboost = false;
     this.lastHealth = -1;
@@ -66,11 +64,6 @@ export class HUD {
   update(v) {
     const { mode, speed, nitro, overboost, boostFrac, players, health, maxHealth, cooldown, shootRate } = v;
 
-    if (mode !== this.lastMode) {
-      this.lastMode = mode;
-      this.modeEl.textContent = mode === 'plane' ? 'FLIGHT' : 'CAR';
-      this.modeEl.classList.toggle('flight', mode === 'plane');
-    }
 
     const kmh = Math.round(speed * 3.6);
     if (kmh !== this.lastSpeed) {
