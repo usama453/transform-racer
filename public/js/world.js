@@ -697,50 +697,15 @@ function buildMegaTower(scene) {
     const w = 6 + ((si * 37) % 7);
     const d = 6 + ((si * 53) % 7);
     const h = 40 + ((si * 89) % 130);
-    const bx = Math.cos(l.a) * l.r;
-    const bz = Math.sin(l.a) * l.r;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
-    body.position.set(bx, DECK + h / 2, bz);
-    body.castShadow = true;
-    g.add(body);
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(w * 0.72, h * 0.8, d * 0.72), glassMat);
-    glass.position.set(bx, DECK + h * 0.55, bz);
-    g.add(glass);
-    const neon = neonColors[si % neonColors.length];
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.3, d + 0.3), new THREE.MeshBasicMaterial({
-      color: neon, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending
-    }));
-    edge.position.set(bx, DECK + h, bz);
-    g.add(edge);
-  }
+  // No buildings on deck (removed pillars/structures)
 
-  const orbs = [];
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2;
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 12), new THREE.MeshBasicMaterial({
-      color: 0x00e5ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false
-    }));
-    orb.position.set(Math.cos(a) * (PR - 4), DECK + 1, Math.sin(a) * (PR - 4));
-    g.add(orb);
-    orbs.push(orb);
-  }
+  // No orbs on deck
 
-  const floatRing = new THREE.Mesh(new THREE.TorusGeometry(64, 1.2, 8, 48), greenMat);
-  floatRing.rotation.x = Math.PI / 2.2;
-  floatRing.position.y = DECK + 120;
-  g.add(floatRing);
+  // No floatRing above deck
 
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-  tip.position.y = DECK + 200;
-  g.add(tip);
+  // No tip above deck
 
-  const beamMat = new THREE.MeshBasicMaterial({
-    color: 0x22ff88, transparent: true, opacity: 0.1,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
-  });
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(3, 14, 700, 12, 1, true), beamMat);
-  beam.position.y = DECK + 550;
-  g.add(beam);
+  // No beam above deck
 
   scene.add(g);
   return { towerGroup: g, rings, spin, orbs, beam, floatRing };
