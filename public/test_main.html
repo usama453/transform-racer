@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Main.js Script Tag Test</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; }
+    .step { margin: 3px 0; padding: 5px; border: 1px solid #333; border-radius: 3px; }
+    .pass { border-color: #00ff88; }
+    .fail { border-color: #ff4444; color: #ff4444; }
+    h1 { color: #fff; }
+  </style>
+  <script src="/libsio/socket.io.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Main.js Script Tag Test</h1>
+  <div id="results">Loading main.js...</div>
+
+  <div id="hud">
+    <div id="players-online">0</div>
+    <button id="sound-toggle">&#128266;</button>
+    <div id="speedometer"><div id="speed-num">0</div><div id="speed-unit">km/h</div></div>
+    <div id="health-panel"><div class="health-label">HULL</div><div id="health-bar"><div id="health-fill"></div></div></div>
+    <div id="nitro-panel"><div class="nitro-label">NITRO</div><div id="nitro-bar"><div id="nitro-fill"></div></div></div>
+    <div id="shoot-indicator" class="ready">FIRE</div>
+    <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="transform-hint">Press F</div>
+    <div id="warning"></div>
+    <div id="spawn-capture"></div>
+    <div id="edge-tags"></div>
+    <div id="kill-feed"></div>
+    <div id="hit-flash"></div>
+    <div id="chat-box"><div id="chat-log"></div><input id="chat-input" /></div>
+  </div>
+  <div id="start-overlay"></div>
+  <input id="name-input" />
+  <button id="join-btn">JOIN</button>
+  <button id="screenshake-toggle">SHAKE</button>
+  <div id="server-status" class="connecting">Connecting...</div>
+
+  <script>
+    window.addEventListener('error', function(e) {
+      document.getElementById('results').innerHTML += '<div class="step fail">ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno + '</div>';
+    });
+  </script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
