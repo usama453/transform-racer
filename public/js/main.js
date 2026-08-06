@@ -212,7 +212,7 @@ window.__updateVehicleVisibility = function(mode) {
 // ============================================================
 const TOWER_POS = new THREE.Vector3(285, 1750, 45);
 const TERRITORY_RADIUS = 800;
-const JET_COUNT = 4;
+const JET_COUNT = 8;
 const JET_SPEED = 80;
 const JET_HEALTH = 2;
 const RESPAWN_TIME = 15;
@@ -381,12 +381,12 @@ function updateNPCJets(dt) {
         }
       }
     } else {
-      // Patrol around tower in BIG circle formation
-      jet.patrolAngle += dt * 0.3;
-      const radius = 400; // Big circle
+      // Patrol around tower in BIG circle formation (3x bigger than disk)
+      jet.patrolAngle += dt * 0.2;
+      const radius = 600; // Big circle, 3x bigger than disk
       const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
       const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
-      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 20;
+      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 40;
       
       const targetPos = new THREE.Vector3(patrolX, patrolY, patrolZ);
       const dir = targetPos.sub(jet.mesh.position).normalize();
