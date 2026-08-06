@@ -105,6 +105,11 @@ let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 
+// Add bright spotlight on vehicle to make it stand out
+const vehicleLight = new THREE.PointLight(0x88ccff, 50, 50);
+vehicleLight.position.set(0, 5, 0);
+vehicleMesh.add(vehicleLight);
+
 // Load GLB models for bike (car mode) and jet (plane mode)
 let bikeModel = null;
 let jetModel = null;
@@ -143,7 +148,8 @@ gltfLoader.load('/jet.glb', (gltf) => {
   const newBox = new THREE.Box3().setFromObject(jetModel);
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
-  jetModel.scale.setScalar(4 / maxDim);
+  jetModel.scale.setScalar(16 / maxDim);
+  jetModel.rotation.z = Math.PI; // Rotate 180 degrees to face forward
   jetModel.visible = false; // Hidden by default (start in car mode)
   vehicleMesh.add(jetModel);
   console.log('Jet loaded');
