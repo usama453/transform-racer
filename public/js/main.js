@@ -156,7 +156,7 @@ gltfLoader.load('/jet.glb', (gltf) => {
   const size = newBox.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   jetModel.scale.setScalar(16 / maxDim);
-  jetModel.rotation.x = Math.PI; // Rotate 180 degrees on X axis to face forward
+  jetModel.rotation.z = Math.PI; // Rotate 180 degrees on Z axis
   jetModel.position.y = 3; // Move up for plane height
   // Make materials flat/unlit but keep colors
   jetModel.traverse((child) => {
