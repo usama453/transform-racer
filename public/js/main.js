@@ -301,6 +301,7 @@ npcLoader.load('/jet.glb', (gltf) => {
   npcJetGLB.rotation.z = Math.PI;
   
   // Update existing jets with GLB model
+  const radius = 900;
   for (const jet of npcJets) {
     if (jet.mesh) scene.remove(jet.mesh);
     jet.mesh = npcJetGLB.clone();
@@ -310,8 +311,11 @@ npcLoader.load('/jet.glb', (gltf) => {
         child.material = new THREE.MeshBasicMaterial({ color: 0xff4444, map: origMap });
       }
     });
+    // Set position to patrol position
+    const startX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
+    const startZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
+    jet.mesh.position.set(startX, TOWER_POS.y, startZ);
     scene.add(jet.mesh);
-    if (jet.trail) jet.trail = createTrail(scene, 0xff4444);
   }
   console.log('NPC Jet GLB loaded');
 });
