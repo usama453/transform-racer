@@ -241,6 +241,13 @@ function createJetNPC(index) {
         child.material = new THREE.MeshBasicMaterial({ color: 0xff4444, map: origMap });
       }
     });
+    
+    // Set initial position to patrol position at tower height
+    const radius = 600;
+    const startX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
+    const startZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
+    jet.mesh.position.set(startX, TOWER_POS.y, startZ);
+    
     scene.add(jet.mesh);
     
     // Add trail
