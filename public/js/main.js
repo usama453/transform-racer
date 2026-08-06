@@ -210,7 +210,7 @@ window.__updateVehicleVisibility = function(mode) {
 // ============================================================
 // NPC Fighter Jets - Patrol central tower, chase players
 // ============================================================
-const TOWER_POS = new THREE.Vector3(285, 1714, 45);
+const TOWER_POS = new THREE.Vector3(285, 80, 45);
 const TERRITORY_RADIUS = 800;
 const JET_COUNT = 4;
 const JET_SPEED = 80;
@@ -272,12 +272,14 @@ function initNPCJets() {
   for (let i = 0; i < JET_COUNT; i++) {
     npcJets.push(createJetNPC(i));
   }
+  console.log('NPC Jets initialized:', npcJets.length);
 }
 
 function updateNPCJets(dt) {
   const playerPos = vehicle.position;
   const playerInTerritory = playerPos.distanceTo(TOWER_POS) < TERRITORY_RADIUS;
-
+  
+  let aliveCount = 0;
   for (const jet of npcJets) {
     if (!jet.alive) {
       jet.respawnTimer -= dt;
@@ -338,7 +340,7 @@ function updateNPCJets(dt) {
       const radius = 150;
       const patrolX = TOWER_POS.x + Math.cos(jet.patrolAngle) * radius;
       const patrolZ = TOWER_POS.z + Math.sin(jet.patrolAngle) * radius;
-      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 20;
+      const patrolY = TOWER_POS.y + Math.sin(jet.patrolAngle * 2) * 10;
       
       const targetPos = new THREE.Vector3(patrolX, patrolY, patrolZ);
       const dir = targetPos.sub(jet.mesh.position).normalize();
