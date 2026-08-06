@@ -235,20 +235,15 @@ export class Vehicle {
     this.velocity.z += fwd.z * fwdForce * dt;
 
     // Check platform landing first
-    const onPlatform = checkPlatformLanding(this);
-
-    if (this.carFalling) {
+    if (checkPlatformLanding(this)) {
+      this.position.y = TOWER_PLATFORM.y;
+      this.velocity.y = 0;
+      this.carFalling = false;
+    } else if (this.carFalling) {
       // accelerating free-fall from a transform (gravity builds downward speed)
       this.velocity.y -= PLANE_GRAVITY * dt;
       this.position.y += this.velocity.y * dt;
-      
-      // Land on platform if above it
-      if (onPlatform && this.position.y <= TOWER_PLATFORM.y) {
-        this.position.y = TOWER_PLATFORM.y;
-        this.velocity.y = 0;
-        this.carFalling = false;
-        if (this.onBounce) this.onBounce(this.velocity.y);
-      } else if (this.position.y <= CAR_BODY_Y) {
+      if (this.position.y <= CAR_BODY_Y) {
         this.position.y = CAR_BODY_Y;
         if (this.velocity.y < -PLANE_BOUNCE_MIN) {
           this.velocity.y = -this.velocity.y * CAR_BOUNCE_REST;
@@ -261,13 +256,9 @@ export class Vehicle {
         this.carFalling = false;
       }
     } else {
-      // car stays glued to the ground (or platform)
+      // car stays glued to the ground
       this.velocity.y = 0;
-      if (onPlatform) {
-        this.position.y = TOWER_PLATFORM.y;
-      } else {
-        this.position.y = CAR_BODY_Y;
-      }
+      this.position.y = CAR_BODY_Y;
     }
 
     this.position.x += this.velocity.x * dt;
@@ -481,8 +472,14 @@ export function checkPlatformLanding(vehicle) {
   if (dist < TOWER_PLATFORM.radius) {
     const platformTop = TOWER_PLATFORM.y;
     
-    if (py <= platformTop && vehicle.velocity.y <= 0) {
-      // Land on platform
+    // Land if above platform and falling
+    if (py <= platformTop + 50 && vehicle.velocity.y <= 0) {
+      vehicle.position.y = platformTop;
+      vehicle.velocity.y = 0;
+      return true;
+    }
+    // Also land if very close to platform top
+    if (Math.abs(py - platformTop) < 5 && vehicle.velocity.y <= 0) {
       vehicle.position.y = platformTop;
       vehicle.velocity.y = 0;
       return true;
