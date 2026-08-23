@@ -1119,7 +1119,7 @@ function buildStars() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 6,
+    size: 3.5,
     map: starTexture(),
     vertexColors: true,
     transparent: true,
