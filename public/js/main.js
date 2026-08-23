@@ -421,6 +421,7 @@ const RAM_SPEED = 150;
 const RAM_HOME_RATE = 2.8;
 const RAM_HIT_DIST = 9;
 const RAM_MIN_SPEED = 40;
+const RAM_PLANE_MAX_PITCH = 1.2;
 
 let lockTarget = null; // {kind:'remote', id} | {kind:'jet', idx}
 let lockMarker = null;
@@ -631,11 +632,28 @@ function updateLockRam(dt) {
   lockHudEl.style.color = '#ff3030';
   lockHudEl.textContent = `\u25C9 LOCKED: ${lockTarget.name} \u2014 ${Math.round(dist)}m`;
 
-  // aggressive homing acceleration toward target
+  // aggressive homing toward target
   const dir = pos.clone().sub(vehicle.position).normalize();
-  const vlen = Math.max(vehicle.velocity.length(), RAM_SPEED * 0.5);
-  const desired = dir.clone().multiplyScalar(Math.max(vlen, RAM_SPEED));
-  vehicle.velocity.lerp(desired, Math.min(1, RAM_HOME_RATE * dt));
+  if (vehicle.mode === 'plane') {
+    // plane physics rebuild velocity from heading + speed each frame,
+    // so home by steering pitch/yaw and boosting speed instead
+    const k = Math.min(1, RAM_HOME_RATE * dt);
+    const targetYaw = Math.atan2(-dir.x, -dir.z);
+    let dyaw = targetYaw - vehicle.yaw;
+    dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+    vehicle.yaw += dyaw * k;
+    const targetPitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1)), -RAM_PLANE_MAX_PITCH, RAM_PLANE_MAX_PITCH);
+    vehicle.pitch += (targetPitch - vehicle.pitch) * k;
+    vehicle.roll *= 1 - k; // level out for a clean pursuit line
+    if (vehicle.speed < RAM_SPEED) {
+      vehicle.speed = Math.min(RAM_SPEED, vehicle.speed + 160 * dt);
+    }
+  } else {
+    // car: velocity-driven physics, so steer the velocity vector itself
+    const vlen = Math.max(vehicle.velocity.length(), RAM_SPEED * 0.5);
+    const desired = dir.clone().multiplyScalar(Math.max(vlen, RAM_SPEED));
+    vehicle.velocity.lerp(desired, Math.min(1, RAM_HOME_RATE * dt));
+  }
 
   // impact check
   const speed = vehicle.velocity.length();
