@@ -425,29 +425,44 @@ const RAM_MIN_SPEED = 40;
 let lockTarget = null; // {kind:'remote', id} | {kind:'jet', idx}
 let lockMarker = null;
 let lockHudEl = null;
+const availMarkers = [];
+const MAX_AVAIL_MARKERS = 8;
+
+function makeBracketSprite(color) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.strokeStyle = color;
+  g.lineWidth = 10;
+  const L = 38, S = 12;
+  g.beginPath();
+  g.moveTo(S, L); g.lineTo(S, S); g.lineTo(L, S);
+  g.moveTo(128 - L, S); g.lineTo(128 - S, S); g.lineTo(128 - S, L);
+  g.moveTo(S, 128 - L); g.lineTo(S, 128 - S); g.lineTo(L, 128 - S);
+  g.moveTo(128 - L, 128 - S); g.lineTo(128 - S, 128 - S); g.lineTo(128 - S, 128 - L);
+  g.stroke();
+  return new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(c), transparent: true, depthTest: false, depthWrite: false
+  }));
+}
 
 function ensureLockUI() {
   if (!lockMarker) {
-    const c = document.createElement('canvas');
-    c.width = c.height = 128;
-    const g = c.getContext('2d');
-    g.strokeStyle = '#ff2020';
-    g.lineWidth = 10;
-    const L = 38, S = 12;
-    g.beginPath();
-    g.moveTo(S, L); g.lineTo(S, S); g.lineTo(L, S);
-    g.moveTo(128 - L, S); g.lineTo(128 - S, S); g.lineTo(128 - S, L);
-    g.moveTo(S, 128 - L); g.lineTo(S, 128 - S); g.lineTo(L, 128 - S);
-    g.moveTo(128 - L, 128 - S); g.lineTo(128 - S, 128 - S); g.lineTo(128 - S, 128 - L);
-    g.stroke();
-    const tex = new THREE.CanvasTexture(c);
-    lockMarker = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: tex, transparent: true, depthTest: false, depthWrite: false
-    }));
+    lockMarker = makeBracketSprite('#ff2020');
     lockMarker.scale.setScalar(14);
     lockMarker.renderOrder = 999;
     lockMarker.visible = false;
     scene.add(lockMarker);
+  }
+  if (availMarkers.length === 0) {
+    for (let i = 0; i < MAX_AVAIL_MARKERS; i++) {
+      const m = makeBracketSprite('#ffd23f');
+      m.scale.setScalar(9);
+      m.renderOrder = 998;
+      m.visible = false;
+      scene.add(m);
+      availMarkers.push(m);
+    }
   }
   if (!lockHudEl) {
     lockHudEl = document.createElement('div');
@@ -475,12 +490,12 @@ function getLockCandidates() {
     const py = rp ? rp.curPos.y : s.y;
     const pz = rp ? rp.curPos.z : s.z;
     const d = Math.hypot(px - myPos.x, py - myPos.y, pz - myPos.z);
-    if (d < LOCK_RANGE) list.push({ kind: 'remote', id, name: s.name || 'Pilot', dist: d });
+    if (d < LOCK_RANGE) list.push({ kind: 'remote', id, name: s.name || 'Pilot', dist: d, pos: rp ? rp.curPos : new THREE.Vector3(px, py, pz) });
   }
   npcJets.forEach((jet, idx) => {
     if (!jet.alive || !jet.mesh) return;
     const d = jet.mesh.position.distanceTo(myPos);
-    if (d < LOCK_RANGE) list.push({ kind: 'jet', idx, name: 'NPC Jet', dist: d });
+    if (d < LOCK_RANGE) list.push({ kind: 'jet', idx, name: 'NPC Jet', dist: d, pos: jet.mesh.position });
   });
   list.sort((a, b) => a.dist - b.dist);
   return list;
@@ -537,8 +552,34 @@ function explodeAt(p, big) {
 }
 
 function updateLockRam(dt) {
-  if (!lockTarget) return;
   ensureLockUI();
+
+  // nothing locked: float amber brackets over every enemy in range
+  if (!lockTarget) {
+    const cands = getLockCandidates();
+    for (let i = 0; i < availMarkers.length; i++) {
+      const m = availMarkers[i];
+      if (i < cands.length) {
+        m.visible = true;
+        m.position.set(cands[i].pos.x, cands[i].pos.y + 8, cands[i].pos.z);
+      } else {
+        m.visible = false;
+      }
+    }
+    if (lockHudEl) {
+      if (cands.length > 0) {
+        lockHudEl.style.display = 'block';
+        lockHudEl.style.color = '#ffd23f';
+        lockHudEl.textContent = `\u25C9 TARGET IN RANGE \u2014 ${input.isMobile ? 'TAP LOCK' : 'PRESS R'} TO LOCK`;
+      } else {
+        lockHudEl.style.display = 'none';
+      }
+    }
+    return;
+  }
+
+  // locked: hide availability markers, focus on target
+  for (const m of availMarkers) m.visible = false;
 
   const pos = lockTargetPos(lockTarget);
   let valid = !!pos;
@@ -553,6 +594,7 @@ function updateLockRam(dt) {
   lockMarker.position.set(pos.x, pos.y + 8, pos.z);
 
   if (!joined) return;
+  lockHudEl.style.color = '#ff3030';
   lockHudEl.textContent = `\u25C9 LOCKED: ${lockTarget.name} \u2014 ${Math.round(dist)}m`;
 
   // aggressive homing acceleration toward target
