@@ -6,7 +6,8 @@ export class Input {
     this.onChatOpen = null;
     this.onCameraToggle = null;
     this.onDoubleShift = null;
-     this.onShoot = null;
+    this.onShoot = null;
+    this.onLock = null;
     this.onCaptureSpawn = null;
     this.joined = false;
     this.lastShiftDown = 0;
@@ -59,6 +60,9 @@ export class Input {
       if (k === 'g' && this.joined) {
         if (this.onShoot) this.onShoot();
       }
+      if (k === 'r' && this.joined) {
+        if (this.onLock) this.onLock();
+      }
       if (k === 'f8') {
         if (this.onCaptureSpawn) this.onCaptureSpawn();
       }
@@ -108,6 +112,7 @@ export class Input {
       </div>
       <div id="touch-right" class="touch-zone">
         <button id="btn-shoot" class="touch-btn btn-action btn-shoot">FIRE</button>
+        <button id="btn-lock" class="touch-btn btn-action">LOCK</button>
         <button id="btn-nitro" class="touch-btn btn-action">NOS</button>
         <button id="btn-drift" class="touch-btn btn-action">DRIFT</button>
         <button id="btn-transform" class="touch-btn btn-transform">F</button>
@@ -173,6 +178,7 @@ export class Input {
     const btnTransform = document.getElementById('btn-transform');
     const btnCamera = document.getElementById('btn-camera');
     const btnShoot = document.getElementById('btn-shoot');
+    const btnLock = document.getElementById('btn-lock');
     const btnYawL = document.getElementById('btn-yaw-left');
     const btnYawR = document.getElementById('btn-yaw-right');
 
@@ -200,6 +206,11 @@ export class Input {
     btnShoot.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (this.onShoot) this.onShoot();
+    }, { passive: false });
+
+    btnLock.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (this.onLock) this.onLock();
     }, { passive: false });
   }
 

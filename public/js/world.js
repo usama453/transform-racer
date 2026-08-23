@@ -757,7 +757,9 @@ function buildCity(scene) {
   const glasses = new THREE.InstancedMesh(unit, glassMat, N);
   const strokes = new THREE.InstancedMesh(unit, strokeMat, N);
   const edges = new THREE.InstancedMesh(unit, edgeMat, N);
-  instMeshes.push(bodies, glasses, strokes, edges);
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 0.55, roughness: 0.5, metalness: 0.1 });
+  const roofs = new THREE.InstancedMesh(unit, roofMat, N);
+  instMeshes.push(bodies, glasses, strokes, edges, roofs);
 
   for (let idx = 0; idx < N; idx++) {
     const b = cityBuildings[idx];
@@ -783,6 +785,11 @@ function buildCity(scene) {
     m4.compose(pos, quat, scl);
     edges.setMatrixAt(idx, m4);
     edges.setColorAt(idx, col.setHex(b.neon));
+
+    scl.set(b.w + 0.4, 0.8, b.d + 0.4);
+    pos.set(b.x, b.h + 0.75, b.z);
+    m4.compose(pos, quat, scl);
+    roofs.setMatrixAt(idx, m4);
   }
 
   bodies.instanceMatrix.needsUpdate = true;
@@ -791,11 +798,12 @@ function buildCity(scene) {
   strokes.instanceColor.needsUpdate = true;
   edges.instanceMatrix.needsUpdate = true;
   edges.instanceColor.needsUpdate = true;
+  roofs.instanceMatrix.needsUpdate = true;
 
-  for (const m of [bodies, glasses, strokes, edges]) m.frustumCulled = false;
+  for (const m of [bodies, glasses, strokes, edges, roofs]) m.frustumCulled = false;
   bodies.castShadow = true;
   bodies.receiveShadow = true;
-  scene.add(bodies, glasses, strokes, edges);
+  scene.add(bodies, glasses, strokes, edges, roofs);
 }
 
 function makeRoadTexture() {
@@ -1080,7 +1088,7 @@ function starTexture() {
 }
 
 function buildStars() {
-  const count = 1500;
+  const count = 2400;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
   const cWhite = new THREE.Color(0xffffff);
@@ -1088,10 +1096,11 @@ function buildStars() {
   const cBlue = new THREE.Color(0x8899ff);
   for (let i = 0; i < count; i++) {
     const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(Math.random() * 0.9 + 0.08);
+    // distribute down to the horizon so stars are visible without looking straight up
+    const phi = Math.acos(Math.random() * 0.92 + 0.02);
     const r = 12000;
     positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.cos(phi);
+    positions[i * 3 + 1] = Math.max(r * Math.cos(phi), 60);
     positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
     const pick = Math.random();
     const c = pick < 0.6 ? cWhite : (pick < 0.85 ? cCyan : cBlue);
@@ -1103,11 +1112,12 @@ function buildStars() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 3.2,
+    size: 6,
     map: starTexture(),
     vertexColors: true,
     transparent: true,
     opacity: 1,
+    fog: false,
     sizeAttenuation: false,
     depthWrite: false,
     blending: THREE.AdditiveBlending

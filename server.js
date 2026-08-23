@@ -377,6 +377,39 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Lock-on ram kill: attacker reports a high-speed ram hit; victim is
+  // respawned and the kill is broadcast (same flow as missile kills)
+  socket.on('ramKill', (data) => {
+    if (!data || typeof data !== 'object') return;
+    const targetId = data.targetId;
+    if (!targetId || targetId === socket.id) return;
+    const target = players.get(targetId);
+    if (!target || target.health <= 0) return;
+
+    const spawn = useHardcodedSpawn ? hardcodedSpawnPoint() : spawnPoint();
+    target.x = spawn.x;
+    target.y = spawn.y;
+    target.z = spawn.z;
+    target.yaw = spawn.yaw;
+    target.pitch = 0;
+    target.roll = 0;
+    target.health = 3;
+    target.mode = 'car';
+    io.emit('playerRespawned', {
+      id: targetId,
+      x: target.x,
+      y: target.y,
+      z: target.z,
+      yaw: target.yaw
+    });
+    io.emit('kill', {
+      killerId: socket.id,
+      killerName: player.name || 'Unknown',
+      victimId: targetId,
+      victimName: target.name
+    });
+  });
+
   socket.on('disconnect', () => {
     players.delete(socket.id);
     io.emit('playerLeft', { id: socket.id, name: player.name });

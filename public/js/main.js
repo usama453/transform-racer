@@ -105,13 +105,13 @@ let rampJumpCount = 0;
 const vehicleMesh = buildVehicle('#33ccff');
 scene.add(vehicleMesh);
 
-// Load GLB models for bike (car mode) and jet (plane mode)
+// Load GLB models for car (ground mode) and jet (plane mode)
 let bikeModel = null;
 let jetModel = null;
 const gltfLoader = new GLTFLoader();
 
-// Load bike for car mode
-gltfLoader.load('/bike.glb', (gltf) => {
+// Load car for ground mode
+gltfLoader.load('/car.glb', (gltf) => {
   bikeModel = gltf.scene;
   const box = new THREE.Box3().setFromObject(bikeModel);
   const center = box.getCenter(new THREE.Vector3());
@@ -150,7 +150,7 @@ gltfLoader.load('/bike.glb', (gltf) => {
     }
   });
   vehicleMesh.add(bikeModel);
-  console.log('Bike loaded');
+  console.log('Car model loaded');
 });
 
 // Load jet for plane mode
@@ -406,6 +406,179 @@ function updateNPCJets(dt) {
     
     // Hide trail when dead
     if (!jet.alive && jet.trail) jet.trail.line.visible = false;
+  }
+}
+
+// ============================================================
+// Lock-on ram attack: press R to lock the nearest enemy (player
+// or NPC jet), cycle R through targets, vehicle aggressively
+// homes in at high speed; impact blows up the target.
+// ============================================================
+const LOCK_RANGE = 450;
+const LOCK_BREAK_RANGE = 620;
+const RAM_SPEED = 150;
+const RAM_HOME_RATE = 2.8;
+const RAM_HIT_DIST = 9;
+const RAM_MIN_SPEED = 40;
+
+let lockTarget = null; // {kind:'remote', id} | {kind:'jet', idx}
+let lockMarker = null;
+let lockHudEl = null;
+
+function ensureLockUI() {
+  if (!lockMarker) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.strokeStyle = '#ff2020';
+    g.lineWidth = 10;
+    const L = 38, S = 12;
+    g.beginPath();
+    g.moveTo(S, L); g.lineTo(S, S); g.lineTo(L, S);
+    g.moveTo(128 - L, S); g.lineTo(128 - S, S); g.lineTo(128 - S, L);
+    g.moveTo(S, 128 - L); g.lineTo(S, 128 - S); g.lineTo(L, 128 - S);
+    g.moveTo(128 - L, 128 - S); g.lineTo(128 - S, 128 - S); g.lineTo(128 - S, 128 - L);
+    g.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    lockMarker = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthTest: false, depthWrite: false
+    }));
+    lockMarker.scale.setScalar(14);
+    lockMarker.renderOrder = 999;
+    lockMarker.visible = false;
+    scene.add(lockMarker);
+  }
+  if (!lockHudEl) {
+    lockHudEl = document.createElement('div');
+    lockHudEl.style.cssText = [
+      'position:absolute', 'top:70px', 'left:50%', 'transform:translateX(-50%)',
+      'color:#ff3030', 'font:bold 15px "Share Tech Mono",monospace',
+      'text-shadow:0 0 8px rgba(255,30,30,.9)', 'display:none',
+      'pointer-events:none', 'letter-spacing:1px'
+    ].join(';');
+    const hudEl = document.getElementById('hud');
+    if (hudEl) hudEl.appendChild(lockHudEl);
+  }
+}
+
+function getLockCandidates() {
+  const list = [];
+  const myPos = vehicle.position;
+  if (!joined) return list;
+  for (const [id] of remotes) {
+    if (id === net.myId) continue;
+    const s = net.players.get(id);
+    if (!s || s.health <= 0) continue;
+    const rp = remotes.get(id);
+    const px = rp ? rp.curPos.x : s.x;
+    const py = rp ? rp.curPos.y : s.y;
+    const pz = rp ? rp.curPos.z : s.z;
+    const d = Math.hypot(px - myPos.x, py - myPos.y, pz - myPos.z);
+    if (d < LOCK_RANGE) list.push({ kind: 'remote', id, name: s.name || 'Pilot', dist: d });
+  }
+  npcJets.forEach((jet, idx) => {
+    if (!jet.alive || !jet.mesh) return;
+    const d = jet.mesh.position.distanceTo(myPos);
+    if (d < LOCK_RANGE) list.push({ kind: 'jet', idx, name: 'NPC Jet', dist: d });
+  });
+  list.sort((a, b) => a.dist - b.dist);
+  return list;
+}
+
+function lockTargetPos(t) {
+  if (t.kind === 'remote') {
+    const rp = remotes.get(t.id);
+    return rp ? rp.curPos : null;
+  }
+  const jet = npcJets[t.idx];
+  return (jet && jet.alive && jet.mesh) ? jet.mesh.position : null;
+}
+
+function setLock(t) {
+  lockTarget = t;
+  if (lockHudEl) lockHudEl.style.display = t ? 'block' : 'none';
+  if (lockMarker) lockMarker.visible = !!t;
+}
+
+function toggleLock() {
+  if (!joined) return;
+  ensureLockUI();
+  const cands = getLockCandidates();
+  if (cands.length === 0) {
+    setLock(null);
+    hud.showWarning('No target in range');
+    audio.boomSfx();
+    return;
+  }
+  let nextIdx = 0;
+  if (lockTarget) {
+    const curIdx = cands.findIndex(c =>
+      c.kind === lockTarget.kind &&
+      (c.kind === 'remote' ? c.id === lockTarget.id : c.idx === lockTarget.idx)
+    );
+    nextIdx = curIdx + 1;
+    if (nextIdx >= cands.length) { setLock(null); return; }
+  }
+  setLock(cands[nextIdx]);
+  audio.boomSfx();
+}
+
+function explodeAt(p, big) {
+  const n = big ? 26 : 10;
+  for (let i = 0; i < n; i++) {
+    particles.spawn(
+      p.clone(),
+      new THREE.Vector3((Math.random() - 0.5) * 30, Math.random() * 18, (Math.random() - 0.5) * 30),
+      1.1, big ? 1.4 : 0.7
+    );
+  }
+  if (big) debris.spawn({ x: p.x, y: p.y, z: p.z }, 4, 4, 4, 12);
+}
+
+function updateLockRam(dt) {
+  if (!lockTarget) return;
+  ensureLockUI();
+
+  const pos = lockTargetPos(lockTarget);
+  let valid = !!pos;
+  if (valid && pos.distanceTo(vehicle.position) > LOCK_BREAK_RANGE) valid = false;
+  if (valid && lockTarget.kind === 'remote') {
+    const s = net.players.get(lockTarget.id);
+    if (!s || s.health <= 0) valid = false;
+  }
+  if (!valid) { setLock(null); return; }
+
+  const dist = pos.distanceTo(vehicle.position);
+  lockMarker.position.set(pos.x, pos.y + 8, pos.z);
+
+  if (!joined) return;
+  lockHudEl.textContent = `\u25C9 LOCKED: ${lockTarget.name} \u2014 ${Math.round(dist)}m`;
+
+  // aggressive homing acceleration toward target
+  const dir = pos.clone().sub(vehicle.position).normalize();
+  const vlen = Math.max(vehicle.velocity.length(), RAM_SPEED * 0.5);
+  const desired = dir.clone().multiplyScalar(Math.max(vlen, RAM_SPEED));
+  vehicle.velocity.lerp(desired, Math.min(1, RAM_HOME_RATE * dt));
+
+  // impact check
+  const speed = vehicle.velocity.length();
+  if (dist < RAM_HIT_DIST && speed > RAM_MIN_SPEED) {
+    explodeAt(pos.clone(), true);
+    shake = 1;
+    audio.boomSfx();
+    if (lockTarget.kind === 'remote') {
+      net.socket.emit('ramKill', { targetId: lockTarget.id });
+      // kill feed arrives via server 'kill' broadcast
+    } else {
+      const jet = npcJets[lockTarget.idx];
+      jet.alive = false;
+      jet.respawnTimer = RESPAWN_TIME;
+      if (jet.mesh) jet.mesh.visible = false;
+      if (jet.trail) jet.trail.line.visible = false;
+      hud.showKillFeed(myName, 'NPC Jet');
+    }
+    vehicle.velocity.multiplyScalar(0.35);
+    setLock(null);
   }
 }
 
@@ -1084,7 +1257,6 @@ input.onShoot = () => {
   if (!joined) return;
   if (!vehicle.canShoot()) return;
   vehicle.shoot();
-
   const fwd = vehicle.forward;
   const muzzle = vehicle.position.clone().addScaledVector(fwd, 2);
 
@@ -1119,7 +1291,6 @@ input.onShoot = () => {
   spawnProjectile(muzzle.x, muzzle.y, muzzle.z, vx, vy, vz, '#33ccff', true, targetId);
 
   net.sendShoot(muzzle.x, muzzle.y, muzzle.z, vx, vy, vz, targetId);
-
   for (let i = 0; i < 4; i++) {
     particles.spawn(
       muzzle.clone().add(new THREE.Vector3(
@@ -1136,6 +1307,8 @@ input.onShoot = () => {
     );
   }
 };
+
+input.onLock = () => toggleLock();
 
 soundBtn.addEventListener('click', () => {
   input.onMute();
@@ -1428,6 +1601,7 @@ function animate() {
   updateProjectiles(dt);
   updateWorld(world, dt);
   updateNPCJets(dt);
+  updateLockRam(dt);
 
   const others = Array.from(net.players.values()).filter((p) => p.id !== net.myId);
   minimap.update(vehicle, others);
