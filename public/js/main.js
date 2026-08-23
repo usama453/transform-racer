@@ -126,6 +126,7 @@ gltfLoader.load('/car.glb', (gltf) => {
   const maxDim = Math.max(size.x, size.y, size.z);
   bikeModel.scale.setScalar(6 / maxDim);
   bikeModel.position.y = 1.5; // Move up so it sits on ground
+  bikeModel.rotation.y = Math.PI; // model faces backwards by default
   // Use MeshBasicMaterial but preserve original colors
   bikeModel.traverse((child) => {
     if (child.isMesh && child.material) {

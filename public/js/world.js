@@ -731,7 +731,8 @@ function buildCity(scene) {
           const idx = cityBuildings.length;
           cityBuildings.push({
             x, z, w, d, h,
-            neon: neonColors[Math.floor(prng() * neonColors.length)]
+            neon: neonColors[Math.floor(prng() * neonColors.length)],
+            redRoof: prng() < 0.3
           });
           addCollider(x - w / 2, z - d / 2, x + w / 2, z + d / 2, idx);
         }
@@ -786,8 +787,14 @@ function buildCity(scene) {
     edges.setMatrixAt(idx, m4);
     edges.setColorAt(idx, col.setHex(b.neon));
 
-    scl.set(b.w + 0.4, 0.8, b.d + 0.4);
-    pos.set(b.x, b.h + 0.75, b.z);
+    // red rooftop on a scattered subset of buildings; zero-scale the rest
+    if (b.redRoof) {
+      scl.set(b.w + 0.4, 0.8, b.d + 0.4);
+      pos.set(b.x, b.h + 0.75, b.z);
+    } else {
+      scl.set(0, 0, 0);
+      pos.set(b.x, b.h / 2, b.z);
+    }
     m4.compose(pos, quat, scl);
     roofs.setMatrixAt(idx, m4);
   }
