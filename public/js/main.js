@@ -425,6 +425,8 @@ const RAM_MIN_SPEED = 40;
 let lockTarget = null; // {kind:'remote', id} | {kind:'jet', idx}
 let lockMarker = null;
 let lockHudEl = null;
+let lockClosest = Infinity; // closest distance reached during this lock (miss detection)
+let lockBehindTime = 0;     // seconds the locked target has been behind us
 const availMarkers = [];
 const MAX_AVAIL_MARKERS = 8;
 
@@ -486,16 +488,25 @@ function getLockCandidates() {
     const s = net.players.get(id);
     if (!s || s.health <= 0) continue;
     const rp = remotes.get(id);
-    const px = rp ? rp.curPos.x : s.x;
-    const py = rp ? rp.curPos.y : s.y;
-    const pz = rp ? rp.curPos.z : s.z;
-    const d = Math.hypot(px - myPos.x, py - myPos.y, pz - myPos.z);
-    if (d < LOCK_RANGE) list.push({ kind: 'remote', id, name: s.name || 'Pilot', dist: d, pos: rp ? rp.curPos : new THREE.Vector3(px, py, pz) });
+    const px = (rp ? rp.curPos.x : s.x) - myPos.x;
+    const py = (rp ? rp.curPos.y : s.y) - myPos.y;
+    const pz = (rp ? rp.curPos.z : s.z) - myPos.z;
+    const d = Math.hypot(px, py, pz);
+    if (d >= LOCK_RANGE) continue;
+    // only targets in front of the player
+    if ((px * vehicle.forward.x + py * vehicle.forward.y + pz * vehicle.forward.z) / (d || 1) < 0.2) continue;
+    list.push({ kind: 'remote', id, name: s.name || 'Pilot', dist: d, pos: rp ? rp.curPos : new THREE.Vector3(myPos.x + px, myPos.y + py, myPos.z + pz) });
   }
   npcJets.forEach((jet, idx) => {
     if (!jet.alive || !jet.mesh) return;
-    const d = jet.mesh.position.distanceTo(myPos);
-    if (d < LOCK_RANGE) list.push({ kind: 'jet', idx, name: 'NPC Jet', dist: d, pos: jet.mesh.position });
+    const dx = jet.mesh.position.x - myPos.x;
+    const dy = jet.mesh.position.y - myPos.y;
+    const dz = jet.mesh.position.z - myPos.z;
+    const d = Math.hypot(dx, dy, dz);
+    if (d >= LOCK_RANGE) return;
+    // only targets in front of the player
+    if ((dx * vehicle.forward.x + dy * vehicle.forward.y + dz * vehicle.forward.z) / (d || 1) < 0.2) return;
+    list.push({ kind: 'jet', idx, name: 'NPC Jet', dist: d, pos: jet.mesh.position });
   });
   list.sort((a, b) => a.dist - b.dist);
   return list;
@@ -512,6 +523,10 @@ function lockTargetPos(t) {
 
 function setLock(t) {
   lockTarget = t;
+  if (t) {
+    lockClosest = Infinity;
+    lockBehindTime = 0;
+  }
   if (lockHudEl) lockHudEl.style.display = t ? 'block' : 'none';
   if (lockMarker) lockMarker.visible = !!t;
 }
@@ -519,23 +534,15 @@ function setLock(t) {
 function toggleLock() {
   if (!joined) return;
   ensureLockUI();
+  // one lock at a time: R toggles the closest in-front target
+  if (lockTarget) { setLock(null); return; }
   const cands = getLockCandidates();
   if (cands.length === 0) {
-    setLock(null);
     hud.showWarning('No target in range');
     audio.boomSfx();
     return;
   }
-  let nextIdx = 0;
-  if (lockTarget) {
-    const curIdx = cands.findIndex(c =>
-      c.kind === lockTarget.kind &&
-      (c.kind === 'remote' ? c.id === lockTarget.id : c.idx === lockTarget.idx)
-    );
-    nextIdx = curIdx + 1;
-    if (nextIdx >= cands.length) { setLock(null); return; }
-  }
-  setLock(cands[nextIdx]);
+  setLock(cands[0]); // closest
   audio.boomSfx();
 }
 
@@ -583,14 +590,41 @@ function updateLockRam(dt) {
 
   const pos = lockTargetPos(lockTarget);
   let valid = !!pos;
-  if (valid && pos.distanceTo(vehicle.position) > LOCK_BREAK_RANGE) valid = false;
+  if (valid && pos.distanceTo(vehicle.position) > LOCK_BREAK_RANGE) valid = false; // out of range
   if (valid && lockTarget.kind === 'remote') {
     const s = net.players.get(lockTarget.id);
-    if (!s || s.health <= 0) valid = false;
+    if (!s || s.health <= 0) valid = false; // target died or left
   }
-  if (!valid) { setLock(null); return; }
+  if (!valid) {
+    hud.showWarning('Lock lost');
+    setLock(null);
+    return;
+  }
 
-  const dist = pos.distanceTo(vehicle.position);
+  const toT = pos.clone().sub(vehicle.position);
+  const dist = toT.length();
+
+  // front-cone enforcement: target escaping behind us breaks the lock
+  const inFront = (toT.x * vehicle.forward.x + toT.y * vehicle.forward.y + toT.z * vehicle.forward.z) / (dist || 1) >= 0;
+  if (!inFront && dist > RAM_HIT_DIST * 2) {
+    lockBehindTime += dt;
+    if (lockBehindTime > 1.0) {
+      hud.showWarning('Target escaped');
+      setLock(null);
+      return;
+    }
+  } else {
+    lockBehindTime = 0;
+  }
+
+  // miss detection: we closed in, then flew past without connecting
+  if (dist < lockClosest) lockClosest = dist;
+  if (dist < 140 && dist - lockClosest > 50) {
+    hud.showWarning('Missed');
+    setLock(null);
+    return;
+  }
+
   lockMarker.position.set(pos.x, pos.y + 8, pos.z);
 
   if (!joined) return;
